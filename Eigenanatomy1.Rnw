@@ -1,0 +1,150 @@
+\documentclass{article}
+\usepackage{geometry}
+\usepackage{url}
+\begin{document}
+<<setup, include=FALSE, cache=FALSE>>=
+opts_chunk$set(fig.path='figure/Eigenanatomy1-', fig.align='center', fig.show='hold')
+options(replace.assign=TRUE,width=90)
+knit_hooks$set(rgl = hook_rgl)
+head(hook_rgl)  # the hook function is defined as this
+library(ANTsR)
+library(boot)
+library(xtable)
+@
+
+\title{Eigenanatomy of control and MCI cortical thickness}
+\author{Brian Beaumont Avants}
+\maketitle
+
+ANTsR illustration of eigenanatomy (eanat) in a p-value and a prediction study.  We also illustrate visualization and descriptive statistics with eanat.
+
+
+
+\section{Read in data}
+
+We read in the population data, template, mask, etc.
+
+<<readdata>>=
+tem<-antsImageRead('data/template_brain.nii.gz',3)
+bm<-antsImageRead('data/brain_mask.nii.gz',3)
+mask <- getMask("data/maskgb.nii.gz")
+mat <- as.matrix( antsImageRead( 'data/thicknesspt25.mha' ,2 ) )
+subjin<-read.csv('data/subjid.csv')[1:nrow(mat),]
+ncon<-48
+nmci<-nrow(mat)-ncon
+basedir<-'eanat_processing'
+@
+
+\section{Reduce dimensionality}
+
+Next we do the eanat decomposition.
+
+<<eigenanatomy>>=
+
+####################
+its<-1
+nvecs<-5 # 0
+usp<-( -1 ) # pca style
+vsp<-0.1
+ii<-0
+cl<-50
+basedire<-paste(basedir,ii,'/',sep='')
+dir.create(file.path("./", basedire), showWarnings = FALSE)
+mydecom<-sparseDecom( (mat), mask,  sparseness=vsp, nvecs=nvecs, its=its, cthresh=cl, statdir=basedire,smooth=0.5, z=usp)
+dx<-c(rep(0,ncon),rep(1,nmci))
+decom1<-mydecom$umatrix
+decom2<-imageListToMatrix( mydecom$eigenanatomyimages, mask)
+myproj<-mat %*% t( decom2 )
+colnames(myproj)<-paste("V",1:ncol(myproj),sep='')
+ct<-1
+# map the images back to the original data space
+for ( x in mydecom$eigenanatomyimages ) 
+  {
+  if ( ct < (ncol(myproj)+1) ) 
+    {
+    vec<-x[ mask == 1 ]
+    vec<-abs( vec )
+    vec<-vec/sum(vec)
+    wavg<-( mat %*% vec )
+    myproj[ ,ct]<-( wavg )
+    ct<-ct+1
+    }
+  }
+@ 
+
+
+
+\section{Eanat prediction}
+
+Use the components to cross-validate a prediction model
+
+<<prediction>>=
+
+####################################################
+# use the networks in prediction                   #
+####################################################
+subb<-myproj[,c(1:5)]
+subj<-data.frame( cbind(subjin,dx,subb) )
+myform<-paste("dx~",paste(colnames(subb),collapse='+'))
+mdl<-glm( as.formula(myform), data=subj, family="binomial")
+dd<-0
+for ( i in 1:100 ) dd<-dd+cv.glm(subj, mdl,K=10)$delta[1]*0.01
+print( dd )
+@ 
+
+\section{Eanat morphometry}
+
+Use the components in a simple group comparison.
+
+<<pvalue>>=
+####################################################
+###     perform a t-test on the networks         ###
+####################################################
+pv<-rep(NA, ncol(myproj) ) 
+for ( i in 1:ncol(myproj) )
+  {
+  pv[i]<-t.test( myproj[1:ncon,i],myproj[(ncon+1):nrow(myproj),i] )$p.value
+  print( paste("p-value",i,pv[i]   ))
+  }
+qv<-(p.adjust(pv,method='holm'))
+@ 
+
+
+
+\section{Eanat interpretation}
+
+Describe the components in terms of traditional coordinates.
+
+Also render some results. 
+
+<<describeit,rgl=TRUE,eval=TRUE,echo=TRUE,warning=FALSE,message=FALSE, dev='png', fig.width=4, fig.height=4, out.width='.5\\linewidth'>>=
+####################################################
+# describe the significant networks                #
+####################################################
+if ( ! exists("mymni") ) {
+  mymni<-list( antsImageRead(getANTsRData('mni'),3), 
+            antsImageRead(getANTsRData('mnib'),3), 
+            antsImageRead(getANTsRData('mnia'),3) )
+  }
+
+mysig<-which(  qv < 0.05 )
+brain<-renderSurfaceFunction( surfimg =list( bm ) , alphasurf=0.1 , smoothsval = 1.5  )
+id<-par3d("userMatrix")
+rid<-rotate3d( id , -pi/2, 1, 0, 0 )
+par3d(userMatrix = rid )
+for ( i in mysig )
+  {
+  mytem<-lappend( list(tem), mydecom$eigenanatomyimages[[ i ]] )
+  signifnetworkdescriptor<-getMultivariateTemplateCoordinates(  mytem, mymni , convertToTal = TRUE , pvals = pv[ i ] , threshparam = 0 , identifier = i )
+  f<-mydecom$eigenanatomyimages[[ i ]]
+  brain<-renderSurfaceFunction( surfimg =list( bm ) , alphasurf=0.1 , smoothsval = 1.5  )
+  plotBasicNetwork( centroids =  getCentroids( f , clustparam = 250, threshparam = 0  ) , brain )
+  rgl.snapshot( paste('network',i,'.png',sep='') , fmt="png", top=TRUE )
+  cap<-paste('EigenNetwork',i,sep='')
+  xtable(signifnetworkdescriptor$network, caption =cap, label = cap)
+  }
+@ 
+
+Now we are done.
+
+\end{document}
