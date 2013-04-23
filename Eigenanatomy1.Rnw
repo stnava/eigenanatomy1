@@ -2,11 +2,11 @@
 \usepackage{geometry}
 \usepackage{url}
 \begin{document}
+\SweaveOpts{concordance=TRUE}
 <<setup, include=FALSE, cache=FALSE>>=
-opts_chunk$set(fig.path='figure/Eigenanatomy1-', fig.align='center', fig.show='hold')
 options(replace.assign=TRUE,width=90)
-knit_hooks$set(rgl = hook_rgl)
-head(hook_rgl)  # the hook function is defined as this
+# knit_hooks$set(rgl = hook_rgl)
+# head(hook_rgl)  # the hook function is defined as this
 library(ANTsR)
 library(boot)
 library(xtable)
@@ -118,6 +118,7 @@ Describe the components in terms of traditional coordinates.
 Also render some results. 
 
 <<describeit,rgl=TRUE,eval=TRUE,echo=TRUE,warning=FALSE,message=FALSE, dev='png', fig.width=4, fig.height=4, out.width='.5\\linewidth'>>=
+opts_chunk$set(fig.path='figure/Eigenanatomy1-', fig.align='center', fig.show='hold')
 ####################################################
 # describe the significant networks                #
 ####################################################
@@ -141,7 +142,8 @@ for ( i in mysig )
   plotBasicNetwork( centroids =  getCentroids( f , clustparam = 250, threshparam = 0  ) , brain )
   rgl.snapshot( paste('network',i,'.png',sep='') , fmt="png", top=TRUE )
   cap<-paste('EigenNetwork',i,sep='')
-  xtable(signifnetworkdescriptor$network, caption =cap, label = cap)
+  mytbl<-xtable(signifnetworkdescriptor$network, caption =cap, label = cap)
+  print(mytbl)
   }
 @ 
 
