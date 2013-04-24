@@ -118,7 +118,7 @@ Describe the components in terms of traditional coordinates.
 
 Also render some results. 
 
-<<figsetup,rgl=TRUE,eval=TRUE,echo=TRUE,results='hide',warning=FALSE,message=FALSE, echo=FALSE,dev='png', fig.width=4, fig.height=4, out.width='.5\\linewidth'>>=
+<<figsetup,eval=TRUE,echo=TRUE,results='hide',warning=FALSE,message=FALSE, echo=FALSE>>=
 ####################################################
 # describe the significant networks                #
 ####################################################
