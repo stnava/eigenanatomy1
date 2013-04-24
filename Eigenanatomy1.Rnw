@@ -42,12 +42,12 @@ Next we do the eanat decomposition.
 <<eigenanatomy>>=
 
 ####################
-its<-4       # max 4 iterations in optimization
+its<-3       # max iterations in optimization
 nvecs<-5     # components to split data into ...
-usp<-( -0.2 )# ICA style
+usp<-( -0.5 )# ICA style
 vsp<-0.1     # components occupy 10% of the mask
 ii<-0        # index for this study 
-cl<-50       # ignore small clusters 
+cl<-150       # ignore small clusters 
 basedire<-paste(basedir,ii,'/',sep='')
 dir.create(file.path("./", basedire), showWarnings = FALSE)
 if ( ! exists('mydecom') )
@@ -93,16 +93,14 @@ for ( i in 1:ncol(myproj) )
   pv[i]<-t.test( myproj[1:ncon,i],myproj[(ncon+1):nrow(myproj),i] )$p.value
   print( paste("p-value",i,pv[i]   ))
   }
-qv<-(p.adjust(pv,method='holm'))
+qv<-(p.adjust(pv,method='bonferroni'))
 @ 
 
 
 
 \section{Eanat interpretation}
 
-Describe the components in terms of traditional coordinates.
-
-Also render some results. 
+Describe the components in terms of traditional coordinates. Also render the results. 
 
 <<figsetup,eval=TRUE,echo=TRUE,results='hide',warning=FALSE,message=FALSE, echo=FALSE>>=
 ####################################################
@@ -121,15 +119,16 @@ rid<-rotate3d( id , -pi/2, 1, 0, 0 )
 par3d(userMatrix = rid ) 
 @
 
-The most significant network.
+This is the visual and anatomical description of the most significant network.
 <<describeit,rgl=TRUE,eval=TRUE,echo=TRUE,results='hide',warning=FALSE,message=FALSE, echo=FALSE,dev='png', fig.width=4, fig.height=4, out.width='.5\\linewidth'>>=
 opts_chunk$set(fig.path='figure/Eigenanatomy1-', fig.align='center', fig.show='asis',fig.keep='all')
 i<-mysig[1]
 mytem<-lappend( list(tem), mydecom$eigenanatomyimages[[ i ]] )
-signifnetworkdescriptor<-getMultivariateTemplateCoordinates(  mytem, mymni , convertToTal = TRUE , pvals = pv[ i ] , threshparam = 0 , identifier = i )
+signifnetworkdescriptor<-getMultivariateTemplateCoordinates(  mytem, mymni , convertToTal = TRUE , pvals = pv[ i ] , threshparam = 0.5, clustparam = cl, identifier = i )
 f<-mydecom$eigenanatomyimages[[ i ]]
-brain<-renderSurfaceFunction( surfimg =list( bm ) , alphasurf=0.1 ,smoothsval = 1.5  )
-plotBasicNetwork( centroids =  getCentroids( f , clustparam = 250, threshparam = 0  ) , brain )
+cnt<-getCentroids( f , clustparam = cl, threshparam = 0.5  )
+brain<-renderSurfaceFunction( surfimg =list( bm ) , alphasurf=0.1 ,smoothsval = 1.5 , smoothfval = 1.0, funcimg=list(cnt$clustimg) , alphafunc=0.2 )
+plotBasicNetwork( centroids =  cnt$centroids , brain )
 rgl.snapshot( paste('network',i,'.png',sep='') , fmt="png", top=TRUE )
 @ 
 
@@ -147,10 +146,11 @@ The next most significant network.
 opts_chunk$set(fig.path='figure/Eigenanatomy1-', fig.align='center', fig.show='asis',fig.keep='all')
 i<-mysig[2]
 mytem<-lappend( list(tem), mydecom$eigenanatomyimages[[ i ]] )
-signifnetworkdescriptor<-getMultivariateTemplateCoordinates(  mytem, mymni , convertToTal = TRUE , pvals = pv[ i ] , threshparam = 0 , identifier = i )
+signifnetworkdescriptor<-getMultivariateTemplateCoordinates(  mytem, mymni , convertToTal = TRUE , pvals = pv[ i ] , threshparam = 0.5, clustparam = cl, , identifier = i )
 f<-mydecom$eigenanatomyimages[[ i ]]
-brain<-renderSurfaceFunction( surfimg =list( bm ) , alphasurf=0.1 ,smoothsval = 1.5  )
-plotBasicNetwork( centroids =  getCentroids( f , clustparam = 250, threshparam = 0  ) , brain )
+cnt<-getCentroids( f , clustparam = cl, threshparam = 0.5  )
+brain<-renderSurfaceFunction( surfimg =list( bm ) , alphasurf=0.1 ,smoothsval = 1.5 , smoothfval = 1.0, funcimg=list(cnt$clustimg) , alphafunc=0.2 )
+plotBasicNetwork( centroids =  cnt$centroids , brain )
 rgl.snapshot( paste('network',i,'.png',sep='') , fmt="png", top=TRUE )
 @ 
 
