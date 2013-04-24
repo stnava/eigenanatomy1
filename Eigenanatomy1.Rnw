@@ -42,12 +42,12 @@ Next we do the eanat decomposition.
 <<eigenanatomy>>=
 
 ####################
-its<-1
-nvecs<-5 # 0
-usp<-( -1 ) # pca style
-vsp<-0.1
-ii<-0
-cl<-50
+its<-4       # max 4 iterations in optimization
+nvecs<-5     # components to split data into ...
+usp<-( -0.2 )# ICA style
+vsp<-0.1     # components occupy 10% of the mask
+ii<-0        # index for this study 
+cl<-50       # ignore small clusters 
 basedire<-paste(basedir,ii,'/',sep='')
 dir.create(file.path("./", basedire), showWarnings = FALSE)
 if ( ! exists('mydecom') )
@@ -57,27 +57,13 @@ decom1<-mydecom$umatrix
 decom2<-imageListToMatrix( mydecom$eigenanatomyimages, mask)
 myproj<-mat %*% t( decom2 )
 colnames(myproj)<-paste("V",1:ncol(myproj),sep='')
-ct<-1
-# map the images back to the original data space
-for ( x in mydecom$eigenanatomyimages ) 
-  {
-  if ( ct < (ncol(myproj)+1) ) 
-    {
-    vec<-x[ mask == 1 ]
-    vec<-abs( vec )
-    vec<-vec/sum(vec)
-    wavg<-( mat %*% vec )
-    myproj[ ,ct]<-( wavg )
-    ct<-ct+1
-    }
-  }
 @ 
 
 
 
 \section{Eanat prediction}
 
-Use the components to cross-validate a prediction model
+Use the components to cross-validate a prediction model.
 
 <<prediction>>=
 
@@ -90,7 +76,7 @@ myform<-paste("dx~",paste(colnames(subb),collapse='+'))
 mdl<-glm( as.formula(myform), data=subj, family="binomial")
 dd<-0
 for ( i in 1:100 ) dd<-dd+cv.glm(subj, mdl,K=10)$delta[1]*0.01
-print( dd )
+print(paste("prediction % misclassification" , dd * 100 ) )
 @ 
 
 \section{Eanat morphometry}
@@ -147,7 +133,7 @@ plotBasicNetwork( centroids =  getCentroids( f , clustparam = 250, threshparam =
 rgl.snapshot( paste('network',i,'.png',sep='') , fmt="png", top=TRUE )
 @ 
 
-The anatomy of this component.
+The anatomy of this component and Talairach coordinates.
 <<tableTest,results='asis',echo=FALSE>>=
 test <- data.frame( signifnetworkdescriptor$networks)
 library(xtable)
@@ -168,13 +154,19 @@ plotBasicNetwork( centroids =  getCentroids( f , clustparam = 250, threshparam =
 rgl.snapshot( paste('network',i,'.png',sep='') , fmt="png", top=TRUE )
 @ 
 
-The anatomy of this component.
+The anatomy of this component and Talairach coordinates.
 <<tableTest2,results='asis',echo=FALSE>>=
 test <- data.frame( signifnetworkdescriptor$networks)
 library(xtable)
 print(xtable(test))
 @
 
-Now we are done.
+Now we are done.  The results are 
+\begin{enumerate}
+\item An anatomically interpretable decomposition.
+\item Its use in a prediction study for mild MCI---results are comparable to state of the art methods.
+\item Application to standard morphometry to reveal network level differences in cortical thickness patterns.
+\end{enumerate}
+Enjoy! 
 
 \end{document}
