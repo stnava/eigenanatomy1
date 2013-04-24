@@ -2,11 +2,11 @@
 \usepackage{geometry}
 \usepackage{url}
 \begin{document}
-\SweaveOpts{concordance=TRUE}
 <<setup, include=FALSE, cache=FALSE>>=
+options(xtable.comment = FALSE)
 options(replace.assign=TRUE,width=90)
-# knit_hooks$set(rgl = hook_rgl)
-# head(hook_rgl)  # the hook function is defined as this
+knit_hooks$set(rgl = hook_rgl)
+head(hook_rgl)  # the hook function is defined as this
 library(ANTsR)
 library(boot)
 library(xtable)
@@ -50,7 +50,8 @@ ii<-0
 cl<-50
 basedire<-paste(basedir,ii,'/',sep='')
 dir.create(file.path("./", basedire), showWarnings = FALSE)
-mydecom<-sparseDecom( (mat), mask,  sparseness=vsp, nvecs=nvecs, its=its, cthresh=cl, statdir=basedire,smooth=0.5, z=usp)
+if ( ! exists('mydecom') )
+  mydecom<-sparseDecom( (mat), mask,  sparseness=vsp, nvecs=nvecs, its=its, cthresh=cl, statdir=basedire,smooth=0.5, z=usp)
 dx<-c(rep(0,ncon),rep(1,nmci))
 decom1<-mydecom$umatrix
 decom2<-imageListToMatrix( mydecom$eigenanatomyimages, mask)
@@ -117,8 +118,7 @@ Describe the components in terms of traditional coordinates.
 
 Also render some results. 
 
-<<describeit,rgl=TRUE,eval=TRUE,echo=TRUE,warning=FALSE,message=FALSE, dev='png', fig.width=4, fig.height=4, out.width='.5\\linewidth'>>=
-opts_chunk$set(fig.path='figure/Eigenanatomy1-', fig.align='center', fig.show='hold')
+<<figsetup,rgl=TRUE,eval=TRUE,echo=TRUE,results='hide',warning=FALSE,message=FALSE, echo=FALSE,dev='png', fig.width=4, fig.height=4, out.width='.5\\linewidth'>>=
 ####################################################
 # describe the significant networks                #
 ####################################################
@@ -132,20 +132,56 @@ mysig<-which(  qv < 0.05 )
 brain<-renderSurfaceFunction( surfimg =list( bm ) , alphasurf=0.1 , smoothsval = 1.5  )
 id<-par3d("userMatrix")
 rid<-rotate3d( id , -pi/2, 1, 0, 0 )
-par3d(userMatrix = rid )
-for ( i in mysig )
-  {
-  mytem<-lappend( list(tem), mydecom$eigenanatomyimages[[ i ]] )
-  signifnetworkdescriptor<-getMultivariateTemplateCoordinates(  mytem, mymni , convertToTal = TRUE , pvals = pv[ i ] , threshparam = 0 , identifier = i )
-  f<-mydecom$eigenanatomyimages[[ i ]]
-  brain<-renderSurfaceFunction( surfimg =list( bm ) , alphasurf=0.1 , smoothsval = 1.5  )
-  plotBasicNetwork( centroids =  getCentroids( f , clustparam = 250, threshparam = 0  ) , brain )
-  rgl.snapshot( paste('network',i,'.png',sep='') , fmt="png", top=TRUE )
-  cap<-paste('EigenNetwork',i,sep='')
-  mytbl<-xtable(signifnetworkdescriptor$network, caption =cap, label = cap)
-  print(mytbl)
-  }
+par3d(userMatrix = rid ) 
+@
+
+The most significant network.
+<<describeit,rgl=TRUE,eval=TRUE,echo=TRUE,results='hide',warning=FALSE,message=FALSE, echo=FALSE,dev='png', fig.width=4, fig.height=4, out.width='.5\\linewidth'>>=
+opts_chunk$set(fig.path='figure/Eigenanatomy1-', fig.align='center', fig.show='asis',fig.keep='all')
+i<-mysig[1]
+mytem<-lappend( list(tem), mydecom$eigenanatomyimages[[ i ]] )
+signifnetworkdescriptor<-getMultivariateTemplateCoordinates(  mytem, mymni , convertToTal = TRUE , pvals = pv[ i ] , threshparam = 0 , identifier = i )
+f<-mydecom$eigenanatomyimages[[ i ]]
+brain<-renderSurfaceFunction( surfimg =list( bm ) , alphasurf=0.1 ,smoothsval = 1.5  )
+plotBasicNetwork( centroids =  getCentroids( f , clustparam = 250, threshparam = 0  ) , brain )
+rgl.snapshot( paste('network',i,'.png',sep='') , fmt="png", top=TRUE )
+cap<-paste('EigenNetwork',i,sep='')
+library(xtable)
+mytbl<-xtable(signifnetworkdescriptor$network)
+print(mytbl)
 @ 
+
+The anatomy of this component.
+<<tableTest,results='asis'>>=
+test <- data.frame( signifnetworkdescriptor$networks)
+library(xtable)
+print(xtable(test))
+@
+
+
+
+The next most significant network.
+<<describeit2,rgl=TRUE,eval=TRUE,echo=TRUE,results='hide',warning=FALSE,message=FALSE, echo=FALSE,dev='png', fig.width=4, fig.height=4, out.width='.5\\linewidth'>>=
+opts_chunk$set(fig.path='figure/Eigenanatomy1-', fig.align='center', fig.show='asis',fig.keep='all')
+i<-mysig[2]
+mytem<-lappend( list(tem), mydecom$eigenanatomyimages[[ i ]] )
+signifnetworkdescriptor<-getMultivariateTemplateCoordinates(  mytem, mymni , convertToTal = TRUE , pvals = pv[ i ] , threshparam = 0 , identifier = i )
+f<-mydecom$eigenanatomyimages[[ i ]]
+brain<-renderSurfaceFunction( surfimg =list( bm ) , alphasurf=0.1 ,smoothsval = 1.5  )
+plotBasicNetwork( centroids =  getCentroids( f , clustparam = 250, threshparam = 0  ) , brain )
+rgl.snapshot( paste('network',i,'.png',sep='') , fmt="png", top=TRUE )
+cap<-paste('EigenNetwork',i,sep='')
+library(xtable)
+mytbl<-xtable(signifnetworkdescriptor$network)
+print(mytbl)
+@ 
+
+The anatomy of this component.
+<<tableTest2,results='asis'>>=
+test <- data.frame( signifnetworkdescriptor$networks)
+library(xtable)
+print(xtable(test))
+@
 
 Now we are done.
 
