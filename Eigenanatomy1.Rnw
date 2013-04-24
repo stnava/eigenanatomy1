@@ -35,6 +35,7 @@ mat <- as.matrix( antsImageRead( 'data/thicknesspt25.mha' ,2 ) )
 subjin<-read.csv('data/subjid.csv')[1:nrow(mat),]
 ncon<-48
 nmci<-nrow(mat)-ncon
+dx<-c(rep(0,ncon),rep(1,nmci))
 basedir<-'eanat_processing'
 @
 
@@ -45,9 +46,9 @@ Next we do the eanat decomposition.
 <<eigenanatomy>>=
 
 ####################
-its<-3       # max iterations in optimization
+its<-4       # max iterations in optimization
 nvecs<-5     # components to split data into ...
-usp<-( -0.2 )  # ICA style
+usp<-( 0.1 )  # ICA style
 vsp<-0.1     # components occupy 10% of the mask
 ii<-0        # index for this study 
 cl<-150       # ignore small clusters 
@@ -55,7 +56,6 @@ basedire<-paste(basedir,ii,'/',sep='')
 dir.create(file.path("./", basedire), showWarnings = FALSE)
 if ( ! exists('mydecom') )
   mydecom<-sparseDecom( (mat), mask,  sparseness=vsp, nvecs=nvecs, its=its, cthresh=cl, statdir=basedire,smooth=0.0, z=usp)
-dx<-c(rep(0,ncon),rep(1,nmci))
 decom1<-mydecom$umatrix
 decom2<-imageListToMatrix( mydecom$eigenanatomyimages, mask)
 myproj<-mat %*% t( decom2 )
@@ -138,7 +138,7 @@ plotBasicNetwork( centroids =  cnt$centroids , brain )
 make3ViewPNG(  rid, id, rid2,  paste('figure/network',i,sep='') )
 par3d(userMatrix = id ) 
 @ 
-\begin{figure}[h!]
+\begin{figure}[h]
   \centering
     \includegraphics[width=1.0\textwidth]{figure/network\Sexpr{i}.png}
   \caption{A significant network.}
@@ -153,16 +153,23 @@ print(xtable(test))
 
 The decomposition extracts regions that covary.  So, let's look at the anatomical correlations within this network.  
 
-<<netcorr,results='asis',echo=FALSE,warning=FALSE,message=FALSE>>=
+<<netcorr,results='hide',echo=FALSE,warning=FALSE,message=FALSE>>=
 nnodes<-nrow( cnt$centroids )
 clustimgs<-image2ClusterImages( cnt$clustimg , minThresh =1, maxThresh = nnodes )
 clustmat<-imageListToMatrix( clustimgs, mask )
 means<-apply(clustmat,MARGIN=1,FUN=mean)
 clustmat<-clustmat/means
 clustmat<-mat %*% t(clustmat)
-image( cor( clustmat ) )
-image( cor( clustmat ) > 0.75 )
+library(pheatmap)
+png('figure/within_network_correlation.png')
+pheatmap( cor( clustmat ) ,symm=T )
+dev.off()
 @
+\begin{figure}[h]
+  \centering
+    \includegraphics[width=0.6\textwidth]{figure/within_network_correlation.png}
+  \caption{Correlation between values at the nodes of the most significant network.}
+\end{figure}
 
 
 Now let's look at the next significant network.
@@ -178,7 +185,7 @@ plotBasicNetwork( centroids =  cnt$centroids , brain )
 make3ViewPNG(  rid, id, rid2,  paste('figure/network',i,sep='') )
 par3d(userMatrix = id ) 
 @ 
-\begin{figure}[h!]
+\begin{figure}[h]
   \centering
     \includegraphics[width=1.0\textwidth]{figure/network\Sexpr{i}.png}
   \caption{The 2nd significant network.}
