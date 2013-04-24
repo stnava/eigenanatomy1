@@ -145,14 +145,10 @@ f<-mydecom$eigenanatomyimages[[ i ]]
 brain<-renderSurfaceFunction( surfimg =list( bm ) , alphasurf=0.1 ,smoothsval = 1.5  )
 plotBasicNetwork( centroids =  getCentroids( f , clustparam = 250, threshparam = 0  ) , brain )
 rgl.snapshot( paste('network',i,'.png',sep='') , fmt="png", top=TRUE )
-cap<-paste('EigenNetwork',i,sep='')
-library(xtable)
-mytbl<-xtable(signifnetworkdescriptor$network)
-print(mytbl)
 @ 
 
 The anatomy of this component.
-<<tableTest,results='asis'>>=
+<<tableTest,results='asis',echo=FALSE>>=
 test <- data.frame( signifnetworkdescriptor$networks)
 library(xtable)
 print(xtable(test))
@@ -170,14 +166,10 @@ f<-mydecom$eigenanatomyimages[[ i ]]
 brain<-renderSurfaceFunction( surfimg =list( bm ) , alphasurf=0.1 ,smoothsval = 1.5  )
 plotBasicNetwork( centroids =  getCentroids( f , clustparam = 250, threshparam = 0  ) , brain )
 rgl.snapshot( paste('network',i,'.png',sep='') , fmt="png", top=TRUE )
-cap<-paste('EigenNetwork',i,sep='')
-library(xtable)
-mytbl<-xtable(signifnetworkdescriptor$network)
-print(mytbl)
 @ 
 
 The anatomy of this component.
-<<tableTest2,results='asis'>>=
+<<tableTest2,results='asis',echo=FALSE>>=
 test <- data.frame( signifnetworkdescriptor$networks)
 library(xtable)
 print(xtable(test))
