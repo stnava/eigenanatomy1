@@ -44,7 +44,7 @@ Next we do the eanat decomposition.
 ####################
 its<-3       # max iterations in optimization
 nvecs<-5     # components to split data into ...
-usp<-( -1 )# ICA style
+usp<-( -1 )  # PCA style
 vsp<-0.1     # components occupy 10% of the mask
 ii<-0        # index for this study 
 cl<-150       # ignore small clusters 
@@ -135,11 +135,23 @@ rgl.snapshot( paste('network',i,'.png',sep='') , fmt="png", top=TRUE )
 
 The anatomy of this component and Talairach coordinates.
 <<tableTest,results='asis',echo=FALSE>>=
-test <- data.frame( signifnetworkdescriptor$networks)
-library(xtable)
+ntwkd<-signifnetworkdescriptor$networks[,c(1,2,3,4,7,8,9)]
+test <- data.frame( ntwkd )
 print(xtable(test))
 @
 
+The decomposition extracts regions that covary.  So, let's look at the anatomical correlations within this network.  
+
+<<netcorr,results='asis',echo=FALSE,warning=FALSE,message=FALSE>>=
+nnodes<-nrow( cnt$centroids )
+clustimgs<-image2ClusterImages( cnt$clustimg , minThresh =1, maxThresh = nnodes )
+clustmat<-imageListToMatrix( clustimgs, mask )
+means<-apply(clustmat,MARGIN=1,FUN=mean)
+clustmat<-clustmat/means
+clustmat<-mat %*% t(clustmat)
+image( cor( clustmat ) )
+image( cor( clustmat ) > 0.75 )
+@
 
 
 The next most significant network.
@@ -157,12 +169,12 @@ rgl.snapshot( paste('network',i,'.png',sep='') , fmt="png", top=TRUE )
 
 The anatomy of this component and Talairach coordinates.
 <<tableTest2,results='asis',echo=FALSE>>=
-test <- data.frame( signifnetworkdescriptor$networks)
-library(xtable)
+ntwkd<-signifnetworkdescriptor$networks[,c(1,2,3,4,7,8,9)]
+test <- data.frame( ntwkd )
 print(xtable(test))
 @
 
-Now we are done.  The results are 
+Now we are done.  The results are: 
 \begin{enumerate}
 \item An anatomically interpretable decomposition.
 \item Its use in a prediction study for mild MCI---results are comparable to state of the art methods.
