@@ -13,6 +13,7 @@ library(xtable)
 library(grid)
 library(png)
 library(abind)
+library(grDevices)
 @
 
 \title{Eigenanatomy of control and MCI cortical thickness}
@@ -46,12 +47,12 @@ Next we do the eanat decomposition.
 <<eigenanatomy>>=
 
 ####################
-its<-4       # max iterations in optimization
-nvecs<-5     # components to split data into ...
-usp<-( 0.1 )  # ICA style
-vsp<-0.1     # components occupy 10% of the mask
-ii<-0        # index for this study 
-cl<-150       # ignore small clusters 
+its<-8              # max iterations in optimization
+nvecs<-10      # components to split data into ...
+usp<-( -0.5 )   # ICA style
+vsp<-0.1        # components occupy 10% of the mask
+ii<-0               # index for this study 
+cl<-0              # ignore small clusters 
 basedire<-paste(basedir,ii,'/',sep='')
 dir.create(file.path("./", basedire), showWarnings = FALSE)
 if ( ! exists('mydecom') )
@@ -61,6 +62,7 @@ decom2<-imageListToMatrix( mydecom$eigenanatomyimages, mask)
 myproj<-mat %*% t( decom2 )
 colnames(myproj)<-paste("V",1:ncol(myproj),sep='')
 @ 
+
 
 
 
@@ -88,7 +90,7 @@ Use the components in a simple group comparison.
 
 <<pvalue>>=
 ####################################################
-###     perform a t-test on the networks         ###
+###     perform a t-test on the networks                                    ###
 ####################################################
 pv<-rep(NA, ncol(myproj) ) 
 for ( i in 1:ncol(myproj) )
@@ -130,9 +132,10 @@ This is the visual and anatomical description of the most significant network.
 opts_chunk$set(fig.path='figure/Eigenanatomy1-', fig.align='center', fig.show='asis',fig.keep='all')
 i<-mysig[1]
 mytem<-lappend( list(tem), mydecom$eigenanatomyimages[[ i ]] )
-signifnetworkdescriptor<-getMultivariateTemplateCoordinates(  mytem, mymni , convertToTal = TRUE , pvals = pv[ i ] , threshparam = 0.5, clustparam = cl, identifier = "_Sig1" )
+if ( cl < 100 ) cl <- 100
+signifnetworkdescriptor<-getMultivariateTemplateCoordinates(  mytem, mymni , convertToTal = TRUE , pvals = pv[ i ] , threshparam = 0.5, clustparam = cl, identifier = "_Sig1", outprefix="./Z" )
 f<-mydecom$eigenanatomyimages[[ i ]]
-cnt<-getCentroids( f , clustparam = cl, threshparam = 0.5  )
+cnt<-getCentroids( f, clustparam = cl, threshparam = 0.5 )
 brain<-renderSurfaceFunction( surfimg =list( bm ) , alphasurf=0.1 ,smoothsval = 1.5 , smoothfval = 1.0, funcimg=list(cnt$clustimg) , alphafunc=0.2 )
 plotBasicNetwork( centroids =  cnt$centroids , brain )
 make3ViewPNG(  rid, id, rid2,  paste('figure/network',i,sep='') )
@@ -160,6 +163,7 @@ clustmat<-imageListToMatrix( clustimgs, mask )
 means<-apply(clustmat,MARGIN=1,FUN=mean)
 clustmat<-clustmat/means
 clustmat<-mat %*% t(clustmat)
+colnames(clustmat)<-test$AAL[2:length(test$AAL)]
 library(pheatmap)
 png('figure/within_network_correlation.png')
 pheatmap( cor( clustmat ) ,symm=T )
@@ -172,12 +176,25 @@ dev.off()
 \end{figure}
 
 
+How do the individual values across this network vary across the population?
+
+<<spider,results='hide',echo=TRUE,warning=FALSE,message=FALSE>>=
+row.names(clustmat)<-subjin
+con_avg<-apply( clustmat[1:ncon,],MARGIN=2,FUN=mean)
+mci_avg<-apply( clustmat[(ncon+1):nrow(myproj),],MARGIN=2,FUN=mean)
+clustmat<-rbind( clustmat, con_avg)
+clustmat<-rbind( clustmat, mci_avg)
+stars( clustmat,main = "Network Thickness: Control vs MCI", flip.labels = FALSE, radius = FALSE, key.loc=c(20,1) )
+@
+
+
+
 Now let's look at the next significant network.
 <<describeit2,rgl=FALSE,eval=TRUE,echo=FALSE,results='hide',warning=FALSE,message=FALSE, echo=FALSE,dev='png', fig.width=4, fig.height=4, out.width='.5\\linewidth'>>=
 opts_chunk$set(fig.path='figure/Eigenanatomy1-', fig.align='center', fig.show='asis',fig.keep='all')
 i<-mysig[2]
 mytem<-lappend( list(tem), mydecom$eigenanatomyimages[[ i ]] )
-signifnetworkdescriptor<-getMultivariateTemplateCoordinates(  mytem, mymni , convertToTal = TRUE , pvals = pv[ i ] , threshparam = 0.5, clustparam = cl, , identifier = "_Sig2" )
+signifnetworkdescriptor<-getMultivariateTemplateCoordinates(  mytem, mymni , convertToTal = TRUE , pvals = pv[ i ] , threshparam = 0.5, clustparam = cl,  identifier = "_Sig2", outprefix="./Z" )
 f<-mydecom$eigenanatomyimages[[ i ]]
 cnt<-getCentroids( f , clustparam = cl, threshparam = 0.5  )
 brain<-renderSurfaceFunction( surfimg =list( bm ) , alphasurf=0.1 ,smoothsval = 1.5 , smoothfval = 1.0, funcimg=list(cnt$clustimg) , alphafunc=0.2 )
