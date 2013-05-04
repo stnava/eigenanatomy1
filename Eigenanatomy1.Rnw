@@ -226,12 +226,13 @@ for ( i in mysig[2:4] )
 \begin{figure}[h]
   \centering
     \includegraphics[width=1.0\textwidth]{figure/network3.png}
-  \caption{The 2nd significant network.}
+  \caption{The 3rd significant network.}
 \end{figure}
+
 \begin{figure}[h]
   \centering
     \includegraphics[width=1.0\textwidth]{figure/network4.png}
-  \caption{The 2nd significant network.}
+  \caption{The 4th significant network.}
 \end{figure}
 
 
