@@ -118,7 +118,7 @@ if ( ! exists("mymni") ) {
             antsImageRead(getANTsRData('mnia'),3) )
   }
 
-mysig<-which(  qv < 0.05 )
+mysig<-order(qv)
 brain<-renderSurfaceFunction( surfimg =list( bm ) , alphasurf=0.1 , smoothsval = 1.5  )
 id<-par3d("userMatrix")
 rid<-rotate3d( id , -pi/2, 1, 0, 0 )
@@ -138,12 +138,12 @@ f<-mydecom$eigenanatomyimages[[ i ]]
 cnt<-getCentroids( f, clustparam = cl, threshparam = 0.5 )
 brain<-renderSurfaceFunction( surfimg =list( bm ) , alphasurf=0.1 ,smoothsval = 1.5 , smoothfval = 1.0, funcimg=list(cnt$clustimg) , alphafunc=0.2 )
 plotBasicNetwork( centroids =  cnt$centroids , brain )
-make3ViewPNG(  rid, id, rid2,  paste('figure/network',i,sep='') )
+make3ViewPNG(  rid, id, rid2,  paste('figure/network1',sep='') )
 par3d(userMatrix = id ) 
 @ 
 \begin{figure}[h]
   \centering
-    \includegraphics[width=1.0\textwidth]{figure/network\Sexpr{i}.png}
+    \includegraphics[width=1.0\textwidth]{figure/network1.png}
   \caption{A significant network.}
 \end{figure}
 
@@ -171,42 +171,69 @@ dev.off()
 @
 \begin{figure}[h]
   \centering
-    \includegraphics[width=0.6\textwidth]{figure/within_network_correlation.png}
+    \includegraphics[width=0.95\textwidth]{figure/within_network_correlation.png}
   \caption{Correlation between values at the nodes of the most significant network.}
 \end{figure}
 
 
-How do the individual values across this network vary across the population?
+How do the individual networks vary across the whole population?
 
-<<spider,results='hide',echo=TRUE,warning=FALSE,message=FALSE>>=
+<<spider,results='hide',echo=FALSE,warning=FALSE,message=FALSE>>=
 row.names(clustmat)<-subjin
 con_avg<-apply( clustmat[1:ncon,],MARGIN=2,FUN=mean)
 mci_avg<-apply( clustmat[(ncon+1):nrow(myproj),],MARGIN=2,FUN=mean)
 clustmat<-rbind( clustmat, con_avg)
 clustmat<-rbind( clustmat, mci_avg)
-stars( clustmat,main = "Network Thickness: Control vs MCI", flip.labels = FALSE, radius = FALSE, key.loc=c(20,1) )
+pdf('figure/spider.pdf')
+stars( clustmat,main = "Network Thickness: Controdl vs MCI", flip.labels = FALSE, radius = TRUE, key.loc=c(20,1) )
+# stars(clustmat, len = 0.6, key.loc = c(20,2), main = "Network Thickness: Control vs MCI", draw.segments = TRUE,   frame.plot = TRUE,  flip.labels = FALSE, cex = .7)
+dev.off()
 @
-
-
-
-Now let's look at the next significant network.
-<<describeit2,rgl=FALSE,eval=TRUE,echo=FALSE,results='hide',warning=FALSE,message=FALSE, echo=FALSE,dev='png', fig.width=4, fig.height=4, out.width='.5\\linewidth'>>=
-opts_chunk$set(fig.path='figure/Eigenanatomy1-', fig.align='center', fig.show='asis',fig.keep='all')
-i<-mysig[2]
-mytem<-lappend( list(tem), mydecom$eigenanatomyimages[[ i ]] )
-signifnetworkdescriptor<-getMultivariateTemplateCoordinates(  mytem, mymni , convertToTal = TRUE , pvals = pv[ i ] , threshparam = 0.5, clustparam = cl,  identifier = "_Sig2", outprefix="./Z" )
-f<-mydecom$eigenanatomyimages[[ i ]]
-cnt<-getCentroids( f , clustparam = cl, threshparam = 0.5  )
-brain<-renderSurfaceFunction( surfimg =list( bm ) , alphasurf=0.1 ,smoothsval = 1.5 , smoothfval = 1.0, funcimg=list(cnt$clustimg) , alphafunc=0.2 )
-plotBasicNetwork( centroids =  cnt$centroids , brain )
-make3ViewPNG(  rid, id, rid2,  paste('figure/network',i,sep='') )
-par3d(userMatrix = id ) 
-@ 
 \begin{figure}[h]
   \centering
-    \includegraphics[width=1.0\textwidth]{figure/network\Sexpr{i}.png}
+    \includegraphics[width=0.95\textwidth]{figure/spider.pdf}
+  \caption{{\bf Spider plots:} We show the thickness at each node of the network in every individual as well as the average for the controls and MCI subjects.}
+\end{figure}
+
+
+
+Now let's look at the rest of the significant networks.
+<<describeit2,rgl=FALSE,eval=TRUE,echo=FALSE,results='hide',warning=FALSE,message=FALSE, echo=FALSE,dev='png', fig.width=4, fig.height=4, out.width='.5\\linewidth'>>=
+opts_chunk$set(fig.path='figure/Eigenanatomy1-', fig.align='center', fig.show='asis',fig.keep='all')
+ct<-2
+for ( i in mysig[2:4] )
+  {
+  mytem<-lappend( list(tem), mydecom$eigenanatomyimages[[ i ]] )
+  signifnetworkdescriptor<-getMultivariateTemplateCoordinates(  mytem, mymni , convertToTal = TRUE , pvals = pv[ i ] , threshparam = 0.5, clustparam = cl,  identifier = "_Sig2", outprefix="./Z" )
+  f<-mydecom$eigenanatomyimages[[ i ]]
+  cnt<-getCentroids( f , clustparam = cl, threshparam = 0.5  )
+  brain<-renderSurfaceFunction( surfimg =list( bm ) , alphasurf=0.1 ,smoothsval = 1.5 , smoothfval = 1.0, funcimg=list(cnt$clustimg) , alphafunc=0.2 )
+  plotBasicNetwork( centroids =  cnt$centroids , brain )
+  par3d(userMatrix = id ) 
+  make3ViewPNG(  rid, id, rid2,  paste('figure/network',ct,sep='') )
+  par3d(userMatrix = id ) 
+  ct<-ct+1
+  }
+ @
+ 
+ \begin{figure}[h]
+  \centering
+    \includegraphics[width=1.0\textwidth]{figure/network2.png}
   \caption{The 2nd significant network.}
 \end{figure}
+
+ 
+\begin{figure}[h]
+  \centering
+    \includegraphics[width=1.0\textwidth]{figure/network3.png}
+  \caption{The 2nd significant network.}
+\end{figure}
+\begin{figure}[h]
+  \centering
+    \includegraphics[width=1.0\textwidth]{figure/network4.png}
+  \caption{The 2nd significant network.}
+\end{figure}
+
 
 
 The anatomy of this component and Talairach coordinates.
