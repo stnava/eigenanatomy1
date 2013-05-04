@@ -185,7 +185,7 @@ mci_avg<-apply( clustmat[(ncon+1):nrow(myproj),],MARGIN=2,FUN=mean)
 clustmat<-rbind( clustmat, con_avg)
 clustmat<-rbind( clustmat, mci_avg)
 pdf('figure/spider.pdf')
-stars( clustmat,main = "Network Thickness: Controdl vs MCI", flip.labels = FALSE, radius = TRUE, key.loc=c(20,1) )
+stars( clustmat,main = "Network Thickness: Control vs MCI", flip.labels = FALSE, radius = TRUE, key.loc=c(20,1) )
 # stars(clustmat, len = 0.6, key.loc = c(20,2), main = "Network Thickness: Control vs MCI", draw.segments = TRUE,   frame.plot = TRUE,  flip.labels = FALSE, cex = .7)
 dev.off()
 @
