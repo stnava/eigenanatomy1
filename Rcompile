@@ -1,0 +1,7 @@
+#!/usr/bin/env Rscript
+library(knitr)
+knit('Eigenanatomy1.Rnw',tangle=TRUE)
+knit('Eigenanatomy1.Rnw',tangle=FALSE)
+system('pdflatex Eigenanatomy1.tex')
+system('rm *log *aux *blg *tex')
+

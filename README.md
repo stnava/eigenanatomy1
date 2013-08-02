@@ -7,5 +7,11 @@ to run in R, do
 
 library(knitr)
 
-knit('Eigenanatomy1.Rnw')
+get the R code
+
+knit('Eigenanatomy1.Rnw',tangle=TRUE)
+
+get the Tex 
+
+knit('Eigenanatomy1.Rnw',tangle=FALSE)
 
