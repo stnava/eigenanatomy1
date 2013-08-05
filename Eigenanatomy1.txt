@@ -292,6 +292,7 @@ decom2<-imageListToMatrix( mydecom$eigenanatomyimages, mask)
 myproj<-mat %*% t( decom2 )
 colnames(myproj)<-paste("V",1:ncol(myproj),sep='')
 eigParcellation<-eigSeg( mask , mydecom$eigenanatomyimages )
+dir.create('tempoutput')
 antsImageWrite(eigParcellation,'tempoutput/eigseg.nii.gz')
 
 @ 
@@ -397,6 +398,7 @@ par3d(userMatrix = id )
 This is the visual and anatomical description of the most significant network.
 <<describeit,echo=FALSE,results='hide',warning=FALSE,message=FALSE, echo=FALSE,dev='png', fig.width=4, fig.height=4, out.width='.5\\linewidth',eval=FALSE>>=
 opts_chunk$set(fig.path='figure/Eigenanatomy1-', fig.align='center', fig.show='asis',fig.keep='all')
+dir.create('figure')
 i<-mysig[1]
 mytem<-lappend( list(tem), mydecom$eigenanatomyimages[[ i ]] )
 if ( cl < 100 ) cl <- 100
