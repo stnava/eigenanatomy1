@@ -203,17 +203,24 @@ where the ${\bf u}_i$ terms are the subject space projections of the eigenanatom
 \subsubsection{Eigenanatomy Penalty Terms} 
 We will encode belief about brain connectivity via penalty terms based on recent {\em graph-based regularization} which may also be called {\em manifold regularization} \cite{Guan2011,Cai2010,Hosoda2009}.  We adopt the methods suggested for NMF in \cite{Cai2010,Guan2011} and tune them for anatomical data.  In this framework, one defines a weight function, $w_{kl}$, across edges where the $k^{th}$ and $l^{th}$ nodes are (for instance) cortical voxels and a higher weight indicates greater connectivity.  The weight function can then vary according to application:  {\bf for parcellating the cortex} the edge weight may be related to the expected membership within a Brodmann area;  {\bf for identifying long-range connections between cortical regions} the edge weight may be related to resting-state connectivity or white matter connectivity;  {\bf for clustering cortical regions} the edge weight may relate to the correlation, across subjects, of cortical thickness values.  This framework leads to the penalty term being represented as a (usually) sparse $p \times p$ matrix ${\bf L}$.  Then the generic eigenanatomy penalty term can be written as ${\bf e}_i^T {\bf L} {\bf e}_i$ where ${\bf L}$ is defined uniquely by the set of weights $w_{kl}$.  For memory efficiency, the full matrix ${\bf L}$ will not be represented explicitly in the implementation.  {For instance, ${\bf L}$ may be formed by a voxel-wise measure of hippocampal connectivity based on white matter tractography where ${\bf L} = {\bf D}^T {\bf D}$ where ${\bf D}$ is $k \times p$ and encodes the connection probability from each of $k$ hippocampal voxels to the rest of the $p$ voxels in the brain.}
 
+The ${\bf e}_i$ are constrained as follows:
+\begin{eqnarray}
+S( {\bf e}_i ) = z^\star, \text{where $z^\star$ is a user constraint},\\ \notag
+\forall_{i \ne j} \langle {\bf e}_j ,  {\bf e}_i \rangle = 0~~\&\&~~{\bf e}_i \succeq 0,\\ \notag
+\nabla^2 {\bf e}_i < \kappa, \text{ i.e. smoothness}.
+\end{eqnarray}
+Comments on each constraint follow.
 
-\noindent{\bf Innerproduct} Standard PCA uses orthogonality.  Eanat
+\noindent{\em Inner-product:} Standard PCA uses orthogonality.  Eanat
 enforces that the innerproduct between the Eanat componenents is
 zero.  
   
-\noindent{\bf Non-negativity}   Non-negativity means that the projections of eigenanatomy into subject space are simply weighted averages of the input data (e.g. cortical thickness values) for each subject.   Although this constraint can be relaxed, non-negativity improves our ability to interpret data by preventing weights from being both positive and negative within the same eigenanatomy component. As such, one may compute effect sizes and interpret statistics directly, for example, ``reductions in posterior cingulate cortical thickness reduce performance on memory-related psychometrics.''  Sparseness can also be implemented by adding a $l_1$ penalty term to the objective function as in numerous machine learning methods \cite{sparseNMF_hoyer,sparseNMF_kim,sparseNMF_heiler,sparsePCA_zou,sparsePCA_jordan,sparsePCA_journee,Gandy2010,Chennubhotla2001,Lee2011}.  %Within eigenanatomy, there is a novel interaction between non-negativity and sparseness that is natural for the brain.  That is, 
+\noindent{\em Non-negativity:}   Non-negativity means that the projections of eigenanatomy into subject space are simply weighted averages of the input data (e.g. cortical thickness values) for each subject.   Although this constraint can be relaxed, non-negativity improves our ability to interpret data by preventing weights from being both positive and negative within the same eigenanatomy component. As such, one may compute effect sizes and interpret statistics directly, for example, ``reductions in posterior cingulate cortical thickness reduce performance on memory-related psychometrics.''  Sparseness can also be implemented by adding a $l_1$ penalty term to the objective function as in numerous machine learning methods \cite{sparseNMF_hoyer,sparseNMF_kim,sparseNMF_heiler,sparsePCA_zou,sparsePCA_jordan,sparsePCA_journee,Gandy2010,Chennubhotla2001,Lee2011}.  %Within eigenanatomy, there is a novel interaction between non-negativity and sparseness that is natural for the brain.  That is, 
 %Sparseness, non-negativity and orthogonality are related by the following fact:  ${\bf e}_i \perp {\bf e}_j$ if entries that are zero in ${\bf e}_i$ are non-zero in ${\bf e}_j$ and vice-versa.  % Thus, one may not always require a $l_1$ penalty if there are sufficient (anatomically) orthogonal eigenanatomy components.  
 To our knowledge, directly exploring the interaction between sparseness, orthogonality and non-negativity for automated parcellation of the brain is novel.  However, this penalty set alone is insufficient to guarantee anatomically reasonable results.
 
 
-\noindent{\bf Sparsity \& Smoothness} We enforce sparsity and
+\noindent{\em Sparsity \& Smoothness:} We enforce sparsity and
 smoothness of the Eanat components by a projection method.  This
 involves a nonlinear optimization of the following constraints:
 \begin{eqnarray}
