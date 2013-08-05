@@ -29,8 +29,7 @@ qv<-1;mysig<-1
 @
 
 
-\title{Eigenanatomy: Smooth and Sparse Component Analysis of
-Structural or Functional Data}
+\title{Eigenanatomy: Sparse Component Analysis for Medical Imaging}
 \author{Brian B. Avants}
 \begin{abstract}
 Eigenanatomy is a general formulation for sparse component analysis of
@@ -92,57 +91,43 @@ the ``blind source separation'' problem: Given a data matrix that
 contains information from a variety of sources, how can we uncover the
 original sources?  Because of the different motivation of ICA, its
 notation is usually different from SPCA and NMF, making comparisons
-between the various methods difficult.  In this paper, we propose a
-general framework that naturally gives rise to SPCA, NMF, and a
-version of ICA, enabling a clearer comparison of the different
-methods, a unified optimization framework, and a natural generation of
-hybrid methods that include aspects of the various decompositions.
-Our contributions are: 1) Formulation of ICA, SPCA, and NMF using
-common and consistent notation; 2) Conceptual clarification of the
-relationship between ICA, SPCA, and NMF; 3) A general framework,
-including optimization algorithms, that allow for easy comparison of
-the decompositions without the confounds of different implementation
-strategies; and 4) Derivation of hybrid methods that allow for
-incorporating different parts of each kind of decomposition.
+between the various methods difficult.  
 
 
-The decomposition algorithms include sparse principal component analysis (sPCA) \cite{},
-independent components analysis (ICA) \cite{} and non-negative matrix
-factorization (NMF) \cite{}. The specific constraints implemented
+Eigenanatomy is a general framework that is closely related to SPCA,
+NMF, and a version of ICA.  The specific constraints implemented
 within each of these methods alter the patterns that are extracted.
-Each algorithm has a different history, employs different theoretical arguments and is favored in a
-different community.  The optimization methods are also heterogeneous,
-making it challenging to know, when comparing different
-implementations of the algorithms, whether the theoretical or
-practical differences are the root of performance variation. To
-address this concern, we implement Eigenanatomy decompositions with
-respect to a consistent data-term and then enforce smoothness and
-sparsity constraints inspired by sPCA, sparse ICA (sICA) and sparse
-NMF (sNMF).  This allows us to compare positively constrained
-decompositions (as with NMF) to sICA and sPCA-like decompositions.
+Each algorithm has a different history, employs different theoretical
+arguments and is favored in a different community.  The optimization
+methods are also heterogeneous, making it challenging to know, when
+comparing different implementations of the algorithms, whether the
+theoretical or practical differences are the root of performance
+variation. To address this concern, we implement Eigenanatomy
+decompositions with respect to a consistent data-term and then enforce
+smoothness and sparsity constraints inspired by sPCA, sparse ICA
+(sICA) and sparse NMF (sNMF).  This allows us to compare positively
+constrained decompositions (as with NMF) to sICA and sPCA-like
+decompositions.
+
+Our contributions in developing Eigenanatomy include: 1) An objective
+function and notation that allows variants of ICA, SPCA, and NMF; 2) A
+general framework, including optimization algorithms, that allow for
+easy comparison of the decompositions without the confounds of
+different implementation strategies; 3) Derivation of hybrid methods
+that allow for incorporating different parts of each kind of
+decomposition; 4) customization of Eanat for neuroimaging and
+comparison with standard approaches. Finally, free access to the
+source code is available.  Furthermore, the matrix data used in this
+paper is available online to support further testing by readers and
+potential Eanat users.
 
 \section{Methods}
+We first describe our theoretical framework and how it relates to PCA
+and other common matrix decomposition methods.  We then detail how the
+framework may be extended to implement neuro or medical imaging
+specific decompositions.  Finally, we briefly outline implementation.
 
-\subsection{The Eigenanatomy Objective} 
-The goal of eigenanatomy is to statistically learn the boundaries of and connections between brain regions by weighing both data and prior anatomical guidance.  In machine learning, such decompositions are termed ``parts-based representations'' because they transform unstructured data into interpretable pieces \cite{Lee1999,sparseNMF_hoyer}.  Recent work in machine learning points to the fact that exploiting problem-specific information can improve parts-based representations \cite{Guan2011,Cai2010,Hosoda2009}.  Uninformed, generic matrix decomposition methods, e.g. standard principal component analysis (PCA) or ICA, may be difficult to interpret because the solutions will produce vectors that are everywhere non-zero, i.e. involve the whole brain rather than its parts.  Sparse methods have sought to resolve this issue \cite{sparseNMF_hoyer,Witten2010,Friedman2010,Cherkassky2009,Friedman2008}.  However, these recent sparse multivariate methods are anatomically uninformed {and which may lead to unstable results} \cite{Xu2011}. Eigenanatomy component images, on the other hand, {enable prior knowledge to enhance solution stability} and are tied to a set of neuroanatomical coordinates that are {\em connected}, {\em smooth} and may also be defined by {\em non-negative} weights. 
-
-% tester
-% They are developed without the specific concerns of neuroimaging and anatomy taken into account.  That is, most existing implementations of machine learning methods ignore the neuroanatomical constraints necessary for biological plausibility and stable optimization of problems involving imaging.  Here, we propose a foundation for computing sparse eigenanatomy based on optimization of a penalized statistical criterion that incorporates anatomical priors.  
-% Thus we implement an optimization-based, one-step computation to replace more ad hoc alternatives \cite{Tamnes2010,Wang2009,Walhovd2009} that typically rely on computing a $p \times p$ ($p=$number of voxels) correlation matrix followed by post-processing.  
-
-% The class of eigenanatomy algorithms will approximate neuroimaging data with a set of sparse biologically plausible component images.   The most critical eigenanatomy contribution is that each component image is tied to a set of neuroanatomical coordinates that are {\em connected}, {\em smooth} and are defined by {\em non-negative} weights.  Alhough this latter constraint can be relaxed, non-negativity improves our ability to interpret data by preventing weights from being both positive and negative within the same eigenanatomy component.  Also, non-negativity means that the projections of eigenanatomy into subject space are simply weighted averages of the input data (e.g. cortical thickness values) for each subject.   
-
-The class of methods encompassing non-negative matrix factorization (NMF) \cite{Lee1999,sparseNMF_hoyer,sparseNMF_kim,sparseNMF_heiler}, sparse principal components analysis (SPCA) \cite{sparsePCA_zou,sparsePCA_jordan,sparsePCA_journee,Gandy2010,Chennubhotla2001,Lee2011} and singular value decomposition \cite{Sill2011,Lee2010b,Yeung2002} form the basis for the approach proposed here. More formally, define a $n \times p$ (rows by columns) matrix $\X$ where each row derives from an observed subject image such that the collection of images is given as $\{x_1,...,x_n\}$ with each vector $x_i$ containing $p$ entries.  Then, the data term involves computing a second matrix $\Xh$ that closely approximates $\X$ in terms of the Frobenius norm that quantifies the difference between the two matrices.   The optimization then minimizes the matrix error term plus the penalties, 
-\begin{equation}
-\label{spca}
-\| \X - \Xh \|_F^2  +  \text{eigenanatomy penalty terms},
-\end{equation}
-where we will define the penalty functions in an application-specific manner and the approximation matrix $\Xh$ will be derived from a collection of eigenanatomy components.  A variety of methods exist for formulating the approximating matrix $\Xh$ and also for the penalties associated with the approximation.  First, we denote each eigenanatomy component as ${\bf e}_i$ where $i$ is ordered such that each eigenanatomy from ${\bf e}_1$ to ${\bf e}_m$ provides a decreasing contribution to the accuracy of the estimate matrix.  Note that eigenanatomy is orthogonal, ${\bf e}_i \perp {\bf e}_j  \forall i \ne j$, and (by definition) {\em sparse}.  Typically, $\Xh$ will be derived from $m < n$ vectors where $n$ is the number of subjects. 
-The classic approximation matrix based on SVD gives  
-$ \Xh =   \sum_{i=1}^m  \lambda_i  {\bf u}_i {\bf e}_i^T $
-where the ${\bf u}_i$ terms are the subject space projections of the eigenanatomy basis vectors and the $\lambda_i$ are the estimated eigenvalues (or singular values).  This formulation can be used to decompose the $p \times p$ matrix efficiently, as in \cite{Witten2009b}.  Similar variants exist in NMF where the $\lambda$ are usually not written explicitly. We will now detail neurobiologically specific penalty terms.
-
-
+\subsection{Decomposing Matrices into Sparse Components}
 We consider a matrix $X \in \mathbb{R}^{n \times p}$, with each row corresponding to an observation (one subject), and $p$ columns, with each column corresponding to a variable (voxel). We seek to decompose this matrix into $X = UV^{\mathrm{T}}$, where $U \in \mathbb{R}^{n \times k}$ is the loading matrix and $V \in \mathbb{R}^{p \times k}$ is the coefficient matrix.  The standard PCA objective function is 
 \begin{equation}
 \begin{aligned}
@@ -192,6 +177,27 @@ implementation of different matrix factorization algorithms. In this
 section, we will first build the most general  generative model and
 then discuss the degenerated situation where it goes to ICA, sPCA or
 NMF. 
+
+\subsection{The Eigenanatomy Objective} 
+The goal of eigenanatomy is to statistically learn the boundaries of and connections between brain regions by weighing both data and prior anatomical guidance.  In machine learning, such decompositions are termed ``parts-based representations'' because they transform unstructured data into interpretable pieces \cite{Lee1999,sparseNMF_hoyer}.  Recent work in machine learning points to the fact that exploiting problem-specific information can improve parts-based representations \cite{Guan2011,Cai2010,Hosoda2009}.  Uninformed, generic matrix decomposition methods, e.g. standard principal component analysis (PCA) or ICA, may be difficult to interpret because the solutions will produce vectors that are everywhere non-zero, i.e. involve the whole brain rather than its parts.  Sparse methods have sought to resolve this issue \cite{sparseNMF_hoyer,Witten2010,Friedman2010,Cherkassky2009,Friedman2008}.  However, these recent sparse multivariate methods are anatomically uninformed {and which may lead to unstable results} \cite{Xu2011}. Eigenanatomy component images, on the other hand, {enable prior knowledge to enhance solution stability} and are tied to a set of neuroanatomical coordinates that are {\em connected}, {\em smooth} and may also be defined by {\em non-negative} weights. 
+
+% tester
+% They are developed without the specific concerns of neuroimaging and anatomy taken into account.  That is, most existing implementations of machine learning methods ignore the neuroanatomical constraints necessary for biological plausibility and stable optimization of problems involving imaging.  Here, we propose a foundation for computing sparse eigenanatomy based on optimization of a penalized statistical criterion that incorporates anatomical priors.  
+% Thus we implement an optimization-based, one-step computation to replace more ad hoc alternatives \cite{Tamnes2010,Wang2009,Walhovd2009} that typically rely on computing a $p \times p$ ($p=$number of voxels) correlation matrix followed by post-processing.  
+
+% The class of eigenanatomy algorithms will approximate neuroimaging data with a set of sparse biologically plausible component images.   The most critical eigenanatomy contribution is that each component image is tied to a set of neuroanatomical coordinates that are {\em connected}, {\em smooth} and are defined by {\em non-negative} weights.  Alhough this latter constraint can be relaxed, non-negativity improves our ability to interpret data by preventing weights from being both positive and negative within the same eigenanatomy component.  Also, non-negativity means that the projections of eigenanatomy into subject space are simply weighted averages of the input data (e.g. cortical thickness values) for each subject.   
+
+The class of methods encompassing non-negative matrix factorization (NMF) \cite{Lee1999,sparseNMF_hoyer,sparseNMF_kim,sparseNMF_heiler}, sparse principal components analysis (SPCA) \cite{sparsePCA_zou,sparsePCA_jordan,sparsePCA_journee,Gandy2010,Chennubhotla2001,Lee2011} and singular value decomposition \cite{Sill2011,Lee2010b,Yeung2002} form the basis for the approach proposed here. More formally, define a $n \times p$ (rows by columns) matrix $\X$ where each row derives from an observed subject image such that the collection of images is given as $\{x_1,...,x_n\}$ with each vector $x_i$ containing $p$ entries.  Then, the data term involves computing a second matrix $\Xh$ that closely approximates $\X$ in terms of the Frobenius norm that quantifies the difference between the two matrices.   The optimization then minimizes the matrix error term plus the penalties, 
+\begin{equation}
+\label{spca}
+\| \X - \Xh \|_F^2  +  \text{eigenanatomy penalty terms},
+\end{equation}
+where we will define the penalty functions in an application-specific manner and the approximation matrix $\Xh$ will be derived from a collection of eigenanatomy components.  A variety of methods exist for formulating the approximating matrix $\Xh$ and also for the penalties associated with the approximation.  First, we denote each eigenanatomy component as ${\bf e}_i$ where $i$ is ordered such that each eigenanatomy from ${\bf e}_1$ to ${\bf e}_m$ provides a decreasing contribution to the accuracy of the estimate matrix.  Note that eigenanatomy is orthogonal, ${\bf e}_i \perp {\bf e}_j  \forall i \ne j$, and (by definition) {\em sparse}.  Typically, $\Xh$ will be derived from $m < n$ vectors where $n$ is the number of subjects. 
+The classic approximation matrix based on SVD gives  
+$ \Xh =   \sum_{i=1}^m  \lambda_i  {\bf u}_i {\bf e}_i^T $
+where the ${\bf u}_i$ terms are the subject space projections of the eigenanatomy basis vectors and the $\lambda_i$ are the estimated eigenvalues (or singular values).  This formulation can be used to decompose the $p \times p$ matrix efficiently, as in \cite{Witten2009b}.  Similar variants exist in NMF where the $\lambda$ are usually not written explicitly. We will now detail neurobiologically specific penalty terms.
+
+
 
 
 \subsubsection{Eigenanatomy Penalty Terms} 
@@ -252,8 +258,8 @@ Next we do the eanat decomposition.
 <<eigenanatomy,eval=FALSE>>=
 
 ####################
-its<-4           # max iterations in optimization
-nvecs<-51      # components to split data into ...
+its<-1           # max iterations in optimization
+nvecs<-11      # components to split data into ...
 usp<-( -1 )     # ICA style if abs( usp ) < 1 or nmf style if usp & vsp> 0
 vsp<-0.02        # components occupy 10% of the mask
 ii<-0              # index for this study 
@@ -276,35 +282,9 @@ antsImageWrite(eigParcellation,'tempoutput/eigseg.nii.gz')
 
 <<egraph,eval=FALSE>>=
 
-decom2<-imageListToMatrix( mydecom$eigenanatomyimages, mask)
-myproj<-mat %*% t( decom2 )
-graphdensity <- 0.25
-gg<-makeGraph( cor( myproj ), graphdensity )
-communitymembership<-gg$walktrapcomm$membership
-newelist<-list()
-for ( cl in 1:max( communitymembership ) )
-{
-  newe<-antsImageClone( mydecom$eigenanatomyimages[[1]] )
-  newe[ mask > 0 ]<-0 
-  print( paste( "fusing " , sum( communitymembership == cl  ), "
-  images  to make ",max( communitymembership ),' new images ') )
-  templist<-mydecom$eigenanatomyimages[ communitymembership == cl   ]
-  for ( eimg in templist ) {   
-    newe[ mask > 0 ] <- newe[ mask > 0 ] + eimg[ mask > 0 ] / sum( eimg[ mask > 0 ] ) 
-    print(  sum( newe > 0 )/ sum( mask > 0 ) )
-  }
-  newe[ mask > 0 ] <- newe[ mask > 0 ] / sum( newe[ mask > 0 ] )
-  newelist<-lappend( newelist, newe )
-}
-ct<-1
-for ( eimg in newelist ) {
-    antsImageWrite( eimg,
-    paste('tempoutput/eimg_clust_',ct,'.nii.gz',sep=''))
-    ct<-ct+1
-}
-decom2<-imageListToMatrix( newelist, mask)
-myproj<-mat %*% t( decom2 )
-colnames(myproj)<-paste("V",1:ncol(myproj),sep='')
+# first fuse with high density to get few predictors , might have to alter density to get what you want
+graphdensity <- 0.65 
+fused<-joinEigenanatomy( mat, mask,  mydecom$eigenanatomyimages, graphdensity )
 
 @
 
@@ -318,9 +298,8 @@ Use the components to cross-validate a prediction model.
 # use the networks in prediction                   #
 ####################################################
 
-subb<-myproj[,rev(1:ncol(myproj))]
-subj<-data.frame( cbind(subjin,dx,subb) )
-myform<-paste("dx~",paste(colnames(subb),collapse='+'))
+subj<-data.frame( cbind( subjin, dx, fused$fusedproj ) )
+myform<-paste( "dx~", paste( colnames( fused$fusedproj ) , collapse='+' ) )
 mdl<-glm( as.formula(myform), data=subj, family="binomial")
 dd<-0
 for ( i in 1:100 ) dd<-dd+cv.glm(subj, mdl,K=10)$delta[1]*0.01
@@ -335,7 +314,7 @@ Use the components in a simple group comparison.
 <<pvalue,eval=FALSE>>=
 
 ####################################################
-###     perform a t-test on the networks                                    ###
+###     perform a t-test on the networks                                ###
 ####################################################
 pv<-rep(NA, ncol(myproj) ) 
 for ( i in 1:ncol(myproj) )
@@ -381,7 +360,7 @@ Describe the components in terms of traditional coordinates. Also render the res
 
 <<figsetup,echo=TRUE,results='hide',warning=FALSE,message=FALSE, echo=FALSE,eval=FALSE>>=
 ####################################################
-# describe the significant networks                #
+# describe the significant networks #
 ####################################################
 if ( ! exists("mymni") ) {
   mymni<-list( antsImageRead(getANTsRData('mni'),3), 
@@ -526,4 +505,6 @@ Now we are done.  The results are:
 \end{enumerate}
 Enjoy! 
 
+\bibliographystyle{IEEEtran}
+\bibliography{icapca}
 \end{document}

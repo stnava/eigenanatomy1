@@ -2,6 +2,9 @@
 library(knitr)
 knit('Eigenanatomy1.Rnw',tangle=TRUE)
 knit('Eigenanatomy1.Rnw',tangle=FALSE)
-system('pdflatex Eigenanatomy1.tex')
+for ( i in c(1,2,3) ) {
+  system('pdflatex Eigenanatomy1 ')
+  system('bibtex Eigenanatomy1 ')
+}
 system('rm *log *aux *blg *tex')
 
