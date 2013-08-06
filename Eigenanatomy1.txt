@@ -167,6 +167,7 @@ where $p(U)$ penalizes the non-independence of the columns of U.  Although there
 Putting these decompositions together, we can combine them into: 
 
 \begin{equation}
+\label{eq:eanat}
 \underset{U,V}{\operatorname{arg\,min}} \; \| X - UV\transpose \|_2^2 + \lambda_1 \sum_i \|U_i\|_1 + \lambda_2 \sum_i \|V_i\|_1,
 \end{equation}
 where $\lambda_1$ controls the contribution of the ICA component of the penalty and $\lambda_2$ controls the component of the SPCA component of the penalty. 
@@ -203,6 +204,8 @@ where the ${\bf u}_i$ terms are the subject space projections of the eigenanatom
 \subsubsection{Eigenanatomy Penalty Terms} 
 We will encode belief about brain connectivity via penalty terms based on recent {\em graph-based regularization} which may also be called {\em manifold regularization} \cite{Guan2011,Cai2010,Hosoda2009}.  We adopt the methods suggested for NMF in \cite{Cai2010,Guan2011} and tune them for anatomical data.  In this framework, one defines a weight function, $w_{kl}$, across edges where the $k^{th}$ and $l^{th}$ nodes are (for instance) cortical voxels and a higher weight indicates greater connectivity.  The weight function can then vary according to application:  {\bf for parcellating the cortex} the edge weight may be related to the expected membership within a Brodmann area;  {\bf for identifying long-range connections between cortical regions} the edge weight may be related to resting-state connectivity or white matter connectivity;  {\bf for clustering cortical regions} the edge weight may relate to the correlation, across subjects, of cortical thickness values.  This framework leads to the penalty term being represented as a (usually) sparse $p \times p$ matrix ${\bf L}$.  Then the generic eigenanatomy penalty term can be written as ${\bf e}_i^T {\bf L} {\bf e}_i$ where ${\bf L}$ is defined uniquely by the set of weights $w_{kl}$.  For memory efficiency, the full matrix ${\bf L}$ will not be represented explicitly in the implementation.  {For instance, ${\bf L}$ may be formed by a voxel-wise measure of hippocampal connectivity based on white matter tractography where ${\bf L} = {\bf D}^T {\bf D}$ where ${\bf D}$ is $k \times p$ and encodes the connection probability from each of $k$ hippocampal voxels to the rest of the $p$ voxels in the brain.}
 
+The Eanat optimization is exactly as in Equation~\ref{eq:eanat} where
+we define the $i^{th}$ row of $V$ to be equal to ${\bf e}_i$.
 The ${\bf e}_i$ are constrained as follows:
 \begin{eqnarray}
 S( {\bf e}_i ) = z^\star, \text{where $z^\star$ is a user constraint},\\ \notag
@@ -310,11 +313,9 @@ fused<-joinEigenanatomy( mat, mask,  mydecom$eigenanatomyimages, graphdensity )
 Use the components to cross-validate a prediction model.
 
 <<prediction,eval=FALSE>>=
-
-####################################################
-# use the networks in prediction                   #
-####################################################
-
+#
+### use the networks in prediction                   
+#
 subj<-data.frame( cbind( subjin, dx, fused$fusedproj ) )
 myform<-paste( "dx~", paste( colnames( fused$fusedproj ) , collapse='+' ) )
 mdl<-glm( as.formula(myform), data=subj, family="binomial")
@@ -329,10 +330,9 @@ print(paste("prediction % misclassification" , dd * 100 ) )
 Use the components in a simple group comparison.
 
 <<pvalue,eval=FALSE>>=
-
-####################################################
-###     perform a t-test on the networks                                ###
-####################################################
+#
+###     perform a t-test on the networks    
+#
 pv<-rep(NA, ncol(myproj) ) 
 for ( i in 1:ncol(myproj) )
   {
@@ -347,11 +347,10 @@ print(qv)
 
 
 <<vbm,eval=FALSE>>=
-
-####################################################
-###     perform a t-test on the voxels                                    ###
-###     contrast bonferroni & FDR correction                           ###
-####################################################
+#
+###     perform a t-test on the voxels                                    
+###     contrast bonferroni & FDR correction                          
+#
 vpv<-rep(NA, ncol(mat) ) 
 for ( i in 1:ncol(mat) )
   {
@@ -376,9 +375,9 @@ antsImageWrite(vqvi,'vqvi_BH.nii.gz')
 Describe the components in terms of traditional coordinates. Also render the results. 
 
 <<figsetup,echo=TRUE,results='hide',warning=FALSE,message=FALSE, echo=FALSE,eval=FALSE>>=
-####################################################
-# describe the significant networks #
-####################################################
+#
+### describe the significant networks 
+#
 if ( ! exists("mymni") ) {
   mymni<-list( antsImageRead(getANTsRData('mni'),3), 
             antsImageRead(getANTsRData('mnib'),3), 
