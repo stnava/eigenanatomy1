@@ -13,7 +13,7 @@
 \newcommand{\argmin}{\operatornamewithlimits{argmin}}
 
 \begin{document}
-<<setup, include=FALSE, cache=FALSE,eval=TRUE>>=
+<<setup, include=FALSE, cache=FALSE,eval=FALSE>>=
 options(xtable.comment = FALSE)
 options(replace.assign=TRUE,width=90)
 options( digits = 4 )
@@ -338,7 +338,7 @@ ANTsR illustration of eigenanatomy (eanat) in a p-value and a prediction study. 
 
 We read in the population data, template, mask, etc.
 
-<<readdata,eval=TRUE>>=
+<<readdata,eval=FALSE>>=
 tem<-antsImageRead('data/template_brain.nii.gz',3)
 bm<-antsImageRead('data/brain_mask.nii.gz',3)
 mask <- getMask("data/maskgb.nii.gz")
@@ -356,7 +356,7 @@ basedir<-'eanat_processing'
 
 Next we do the eanat decomposition.
 
-<<eigenanatomy,eval=TRUE>>=
+<<eigenanatomy,eval=FALSE>>=
 
 ####################
 its<-1           # max iterations in optimization
@@ -382,7 +382,7 @@ antsImageWrite(eigParcellation,'tempoutput/eigseg.nii.gz')
 @ 
 
 
-<<egraph,eval=TRUE>>=
+<<egraph,eval=FALSE>>=
 
 # first fuse with high density to get few predictors , might have to alter density to get what you want
 graphdensity <- 0.65 
@@ -476,7 +476,7 @@ par3d(userMatrix = id )
 @
 
 This is the visual and anatomical description of the most significant network.
-<<describeit,echo=FALSE,results='hide',warning=FALSE,message=FALSE, echo=FALSE,dev='png', fig.width=4, fig.height=4, out.width='.5\\linewidth',eval=TRUE>>=
+<<describeit,echo=FALSE,results='hide',warning=FALSE,message=FALSE, echo=FALSE,dev='png', fig.width=4, fig.height=4, out.width='.5\\linewidth',eval=FALSE>>=
 opts_chunk$set(fig.path='figure/Eigenanatomy1-', fig.align='center', fig.show='asis',fig.keep='all')
 dir.create('figure')
 i<-mysig[1]
@@ -497,7 +497,7 @@ par3d(userMatrix = id )
 \end{figure}
 
 The anatomy of this component and Talairach coordinates.
-<<tableTest,results='asis',echo=FALSE,eval=TRUE>>=
+<<tableTest,results='asis',echo=FALSE,eval=FALSE>>=
 ntwkd<-signifnetworkdescriptor$networks[,c(1,2,3,4,7,8,9)]
 test <- data.frame( ntwkd )
 print(xtable(test))
@@ -505,7 +505,7 @@ print(xtable(test))
 
 The decomposition extracts regions that covary.  So, let's look at the anatomical correlations within this network.  
 
-<<netcorr,results='hide',echo=FALSE,warning=FALSE,message=FALSE,eval=TRUE>>=
+<<netcorr,results='hide',echo=FALSE,warning=FALSE,message=FALSE,eval=FALSE>>=
 nnodes<-nrow( cnt$centroids )
 clustimgs<-image2ClusterImages( cnt$clustimg , minThresh =1, maxThresh = nnodes )
 clustmat<-imageListToMatrix( clustimgs, mask )
@@ -527,7 +527,7 @@ dev.off()
 
 How do the individual networks vary across the whole population?
 
-<<spider,results='hide',echo=FALSE,warning=FALSE,message=FALSE,eval=TRUE>>=
+<<spider,results='hide',echo=FALSE,warning=FALSE,message=FALSE,eval=FALSE>>=
 row.names(clustmat)<-subjin
 con_avg<-apply( clustmat[1:ncon,],MARGIN=2,FUN=mean)
 mci_avg<-apply( clustmat[(ncon+1):nrow(myproj),],MARGIN=2,FUN=mean)
@@ -547,7 +547,7 @@ dev.off()
 
 
 Now let's look at the rest of the significant networks.
-<<describeit2,rgl=FALSE,echo=FALSE,results='hide',warning=FALSE,message=FALSE,dev='png', fig.width=4, fig.height=4, out.width='.5\\linewidth',eval=TRUE>>=
+<<describeit2,rgl=FALSE,echo=FALSE,results='hide',warning=FALSE,message=FALSE,dev='png', fig.width=4, fig.height=4, out.width='.5\\linewidth',eval=FALSE>>=
 opts_chunk$set(fig.path='figure/Eigenanatomy1-', fig.align='center', fig.show='asis',fig.keep='all')
 ct<-2
 for ( i in mysig[2:4] )
@@ -587,7 +587,7 @@ for ( i in mysig[2:4] )
 
 
 The anatomy of this component and Talairach coordinates.
-<<tableTest2,results='asis',echo=FALSE,warning=FALSE,message=FALSE,eval=TRUE>>=
+<<tableTest2,results='asis',echo=FALSE,warning=FALSE,message=FALSE,eval=FALSE>>=
 i<-mysig[2]
 mytem<-lappend( list(tem), mydecom$eigenanatomyimages[[ i ]] )
 signifnetworkdescriptor<-getMultivariateTemplateCoordinates(  mytem, mymni , convertToTal = TRUE , pvals = pv[ i ] , threshparam = 0.5, clustparam = cl,  identifier = "_Sig2", outprefix="./Z" )
