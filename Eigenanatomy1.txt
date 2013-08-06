@@ -7,8 +7,12 @@
 \newcommand{\transpose}{^\mathrm{T}}
 \usepackage{geometry}
 \usepackage{url}
-\begin{document}
+\usepackage[boxed]{algorithm2e}
+\usepackage{algorithmicx,algpseudocode}
+\newcommand{\argmax}{\operatornamewithlimits{argmax}}
+\newcommand{\argmin}{\operatornamewithlimits{argmin}}
 
+\begin{document}
 <<setup, include=FALSE, cache=FALSE,eval=TRUE>>=
 options(xtable.comment = FALSE)
 options(replace.assign=TRUE,width=90)
@@ -239,7 +243,84 @@ $\gamma^\star$.
 \subsection{Eigenanatomy Implementation} 
 \noindent{\bf Eigenanatomy optimization algorithm.}  We will implement our own Arnoldi iteration (similar to \cite{Gandy2010,sparsePCA_journee}) and the gradient-based methods proposed in \cite{Cai2010} and also in \cite{Lee1999}.  We will develop the general framework and matrix representation above starting with the classic Arnoldi iteration method.  This technique is appropriate for large-scale problems and fits within the standard alternating minimization approach used by NMF and SPCA methods \cite{Gandy2010}.  
 
-\textcolor{red}{paramveer}
+One could optimize the eanat objective in Equation~\ref{spca} using an iterative approach like power iteration. However, since the enact objective is non-convex we risk the chance of getting stuck in a bad local optima. Specifically, with that in mind, we propose a novel optimization algorithm for the eanat objective; particularly, we ``deflate'' our data matrix {\bf X} (factoring out the effect of other eigenvectors) between computations of different eigenvectors, which leads to better solutions~\citep{mackey08}. The deflation based optimization entails performing an additional ordinary least squares regression (OLS) step and can be motivated as follows.
+
+
+We know that the best rank `k' reconstruction of a matrix  i.e. $\argmin_{\hat{\bf X}} \|\bf X~-~\hat{X} \|_F^2$, is provided by its first `k' eigenvectors~\citep{eckart} i.e. $\hat{\bf X}=\sum_{i=1}^k d_k{u}_k{v}_k^{\top}$.
+
+Hence, the best rank-1 approximation of {\bf X}, i.e. the $n\times 1$ and $p \times 1$ vectors ${\tilde{u}}$, ${\tilde{v}}$ such that,
+\begin{equation}
+\label{ppca1}
+{\tilde{u}^*, \tilde{v}^*}= min_{{\tilde{u}}, {\tilde{v}}} \|{{\bf X}- \tilde{u}\tilde{v}^{\top}}\|_F^2
+\end{equation}
+is given by the SVD solution-- ${\tilde{u}=u_1}$ and ${\tilde{v}}=d_1{v_1}$, where ${u_1 }$, ${v_1}$ and $d_1$ are the first left and right eigenvectors and the eigenvalue, respectively, of the {\bf X} matrix.   
+
+Proceeding this way, $d_2{u}_2{v}_2^{\top}$ provide the best rank-1 approximation of the ``deflated'' matrix ${{\bf X}- d_1{u}_1{v}_1^{\top}}$ and so on. 
+
+
+As pointed by~\citep{shen},  with ${\tilde{v}}$ fixed, the above optimization over  ${\tilde{u}}$ is equivalent to a least squares regression of {\bf X} on  ${\tilde{v}}$. Once we have ${\tilde{u}}$, we solve for ${\tilde{v}}$ by performing power iteration followed by sparse ``soft thresholded'' projection with the following objective
+
+\begin{equation}
+\label{spca1}
+{v_i^*}= \argmax_{{v_i},{\|v_i\|}=1,  v_i^{\top}v_j=0, i\neq j} {v_i}^{\top}\left(X_{\backslash i}^{\top}X_{\backslash i} \right){v_i} +  \lambda_i\|{v_i}\|_1 
+\end{equation}
+where ${\bf X}_{\backslash i}  \triangleq {\bf X}- \sum_{j=1, j\neq i}^{k}{\tilde{u}_j\tilde{v}_j^{\top}}$ is the ``deflated'' {\bf X} matrix.
+
+
+
+Our proposed algorithm for eanat iterates between Equations~\ref{spca} and \ref{spca1} i.e. with ${\tilde{v}}$ fixed, performing least squares regression to find  ${\tilde{u}}$ and then holding  ${\tilde{u}}$ fixed and solving to get the sparse prior constrained eigenvectors ${\tilde{v}}$. 
+
+
+The sparseness, smoothness and non-negativity are enforced as discussed in the previous section.
+
+ The details of our algorithm can be found in Algorithms~\ref{algo1},~\ref{algo2}. Note that the OLS regression step is just required to compute $\tilde{u}$ which is required for deflation of the data matrix.
+
+\begin{algorithm}[htbp]
+\small \caption{\bf  Eigenanatomy: eanat (Main Algorithm)}
+\label{algo1}
+\KwIn { {\bf X}, $\lambda$ }
+Standardize the data matrix {\bf X}: Mean center it and scale to unit variance\;
+Initialize the eigenvectors randomly ${\bf V \gets \mathcal{N}(0,1)}$\;
+${\bf U} \gets$ {\texttt {ReconOpt}}(${\bf X}, {\bf V}$)\;
+\While {${\Delta {\bf \|V\|}} \leq \epsilon$ }{	
+\For{i=1 to k}{
+	${\bf X_{\backslash i}}  \gets {\bf X}- \sum_{j=1, i\neq j}^{k}{u_jv_j^{\top}}$\Comment{Deflate {\bf X}}\;
+	${v_i} \gets$ {{\texttt {SP}}}(${\bf X}_{\backslash i}, {\bf V},  \lambda,i$)\;
+	${\bf U} \gets$ {\texttt {ReconOpt}}(${\bf X}, {\bf V}$) \Comment{Where {\bf V} is the matrix with only its $i^{th}$ column updated. Other columns are same as previous iteration}\;
+	}
+	}
+\KwOut {${\bf V}$}
+\end{algorithm}
+\begin{algorithm}[htbp]
+\label{algo2}
+\DontPrintSemicolon
+\SetKwFunction{KwFun}{ReconOpt} \;
+\KwFun{${\bf X}$, ${\bf V}$}\Comment{Optimize Reconstruction error for finding $u_i$}\;
+{
+\hspace{0.5cm}	${\bf U}   \gets ({\bf XX^{\top}})^{-1}{\bf XV}$ \Comment{Performs Ordinary Least Squares Regression.}\;
+\hspace{0.5cm} return {\bf U}
+}
+\SetKwFunction{KwFun}{SP}\;
+\KwFun{${\bf Y}$, ${\bf V}$, $\lambda$,i } \Comment{Sparse  Projection for finding $v_i$}\;
+{
+\hspace{0.5cm}$k \gets 1$\;
+\hspace{0.5cm}${c}^k \gets {\bf V}_{:,i}$ \Comment{${\bf V}_{:,i}$ contains the $i^{th}$ eigenvector.}\;
+\hspace{0.5cm}${c}^k \gets$ {\texttt S}(${c}^k$,$\gamma$) \Comment{Soft-Max Thresholding.}\;
+\While {${\Delta c} \leq \epsilon$ }{
+${ c}^{k+1} \gets ({\bf Y^{\top}Y}){c}^{k}$  \Comment{Power Iteration.}\;
+ ${c}^{k+1} \gets$ {\texttt {Orthogonalize}}(${c}^{k+1}$,{ $\bf V_{:,\backslash i}$}) \Comment{Orthogonalize w.r.t all the other $k-1$ eigenvectors.}\;
+ ${c}^{k+1} \gets$ {\texttt S}(${c}^{k+1}$,$\gamma$) \;
+${ c}^{k+1} \gets \frac{{c}^{k+1}}{\| {c}^{k+1}\|}$ \Comment{Normalize}\;
+ $k \gets k+1$\;
+}
+\hspace{0.5cm} return {c}
+}
+\small \caption{\bf Eigenanatomy: eanat (Sub Algorithm)}
+\end{algorithm}
+
+
+
+
 
 \section{Results}
 
