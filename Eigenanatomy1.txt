@@ -381,6 +381,113 @@ antsImageWrite(eigParcellation,'tempoutput/eigseg.nii.gz')
 
 @ 
 
+<<compareDecom, eval=FALSE>>=
+its<-5
+nvecs<-6 # 0
+studynames<-c(  "NMF", "ICA", "sPCA", "v+sPCA", "sPICA","v+sPICA", "PCA","fastICA" )
+u<-1/20
+v<-1/40
+mp<-data.frame( studynames=studynames, uSparseness=c(u, -1*u, -1, -1, -1*u, -1*u, NA, NA), vSparseness=c( v, -1, -1*v, v, -1*v, v, NA, NA))
+myresults<-rep(NA,nrow(mp))
+myqct<-rep(NA,nrow(mp))
+myk<-rep(NA,nrow(mp))
+mymi<-rep(NA,nrow(mp))
+mycorct<-rep(NA,nrow(mp))
+mypred<-rep(NA,nrow(mp))
+resultlist<-list()
+resultlist2<-list()
+
+for ( ii in c(1:nrow(mp)) ) {
+  basedire<-paste(basedir,ii,'/',sep='')
+  dir.create(file.path("./", basedire), showWarnings = FALSE)
+  print(paste("Params: u ",mp$uSparseness[ii]," v ",mp$vSparseness[ii]))
+  if ( ii < (nrow(mp)-1))
+    mydecom<-sparseDecom( (mat), mask,  sparseness=mp$vSparseness[ii],
+                          nvecs=nvecs, its=its, cthresh=5550, 
+                          statdir=basedire,smooth=0, z=mp$uSparseness[ii])
+  seg<-eigSeg(mask, mydecom$eigenanatomyimages )
+  antsImageWrite(seg,paste(basedire,'eig_seg_',ii,'x.nii.gz',sep=''))
+  dx<-c(rep(0,ncon),rep(1,nmci))
+  decom1<-mydecom$umatrix
+  decom2<-mydecom$umatrix
+
+  if ( TRUE ) {
+  ct<-1
+  for ( x in mydecom$eigenanatomyimages ) {
+    if ( ct < (ncol(decom2)+1) ) {
+      vec<-x[ mask == 1 ]
+      vec<-abs( vec )
+      vec<-vec/sum(vec)
+      wavg<-( mat %*% vec )
+      decom2[ ,ct]<-( wavg )
+      ct<-ct+1
+      }
+  }
+  }
+ if ( ii == (nrow(mp)) )
+    {
+    print("begin fastICA")
+    myica<-fastICA( t(mat) ,nvecs)
+    decom2<-mat %*% myica$S # t(decom2$A)
+    decom1<-t(myica$A)
+    }
+  if ( ii == (nrow(mp)-1) )
+    {
+    pca<-princomp( t(mat) )
+    decom2 <- mat %*% pca$scores
+    decom1 <- t( as.matrix( pca$loadings[1:nvecs,]) )
+    }
+  pvals<-rep(NA,ncol(decom2))
+  ttvals<-rep(NA,ncol(decom2))
+  for ( x in 1:ncol(decom2) )
+    {
+    tt<-( t.test( decom2[1:ncon, x ] , decom2[ (ncon+1):(ncon+nmci), x ] ) )
+    pvals[x]<-tt$p.value
+    ttvals[x]<-tt$statistic
+    }
+  qvals<-(p.adjust(pvals,method="BH"))
+  print(qvals)
+  print("tvals")
+  print(ttvals)
+  myresults[ii]<-sum(qvals<0.050001)
+  mycor<-cor( decom2 )
+  mycorct[ii]<-mean( abs( mycor[  mycor < 1 ] ) )
+  myk[ii]<-sum(abs(c(moments::kurtosis(decom1))))
+  muti<-0 ; mict<-0
+  disc<-discretize(decom1,nbins=16)
+  for ( x in 1:nvecs ) for ( y in 1:nvecs )
+    if ( x != y )
+      {
+      muti<-muti+mutinformation( disc[,x], disc[,y],method="emp")
+      mict<-mict+1
+      }
+  print( muti/mict )
+  mymi[ii]<-muti/mict
+  colnames(decom2)<-paste("V",1:ncol(decom2),sep='')
+  subj<-cbind(subjin,dx,decom2)
+  myform<-paste("dx~",paste(colnames(decom2),collapse='+'))
+  mdl<-glm( as.formula(myform), data=subj, family="binomial")
+  print("begin cv")
+  dd<-0
+  for ( i in 1:100 ) dd<-dd+cv.glm(subj, mdl,K=10)$delta[1]*0.01
+  mypred[ii]<-dd[1]
+  mydf<-data.frame(meanCorrelation=mycorct,
+                   kurtosis=myk,
+                   mutualinformation=mymi,
+                   qValLtPoint05=myresults,
+                   prediction=mypred)
+  mydf<-cbind(mp,mydf)
+  print(mydf)
+  resultlist <-lappend( resultlist, mydecom  )
+  resultlist2<-lappend( resultlist, decom2 )
+  library(xtable)
+  xtbl<-xtable(mydf)
+  print(xtbl,floating=FALSE)
+  write.csv(mydf,'quick_results2b.csv')
+}
+
+@
+
 
 <<egraph,eval=FALSE>>=
 
