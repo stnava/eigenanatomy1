@@ -26,6 +26,8 @@ library(grid)
 library(png)
 library(abind)
 library(grDevices)
+library(entropy)
+library(xtable)
 @
 
 <<definevars, include=FALSE, cache=FALSE,eval=TRUE>>=
@@ -328,7 +330,13 @@ ${ c}^{k+1} \gets \frac{{c}^{k+1}}{\| {c}^{k+1}\|}$ \Comment{Normalize}\;
 \section{Results}
 
 % \subsection{Model Comparison between sPCA, ICA and NMF}
-
+\subsection{Outline of results}
+\begin{enumerate}
+  \item[Figure 1] Graphical/cartoon outline of parts-based representations for neuroimaging   
+  \item[Table 1] Tabular description of the various decompositions and what they penalize
+  \item[Figure 2]  
+  \item[Figure 3]
+\end{enumerate}
 
 ANTsR illustration of eigenanatomy (eanat) in a p-value and a prediction study.  We also illustrate visualization and descriptive statistics with eanat.
 
@@ -387,7 +395,9 @@ nvecs<-6 # 0
 studynames<-c(  "NMF", "ICA", "sPCA", "v+sPCA", "sPICA","v+sPICA", "PCA","fastICA" )
 u<-1/20
 v<-1/40
-mp<-data.frame( studynames=studynames, uSparseness=c(u, -1*u, -1, -1, -1*u, -1*u, NA, NA), vSparseness=c( v, -1, -1*v, v, -1*v, v, NA, NA))
+mp<-data.frame( studynames=studynames, 
+                uSparseness=c(u, -1*u, -1, -1, -1*u, -1*u, NA, NA), 
+                vSparseness=c( v, -1, -1*v, v, -1*v, v, NA, NA))
 myresults<-rep(NA,nrow(mp))
 myqct<-rep(NA,nrow(mp))
 myk<-rep(NA,nrow(mp))
@@ -482,13 +492,13 @@ for ( ii in c(1:nrow(mp)) ) {
   resultlist2<-lappend( resultlist, decom2 )
   library(xtable)
   xtbl<-xtable(mydf)
-  print(xtbl,floating=FALSE)
+  print(xtbl,floating=FALSE, file='results.tex', booktabs=T)
   write.csv(mydf,'quick_results2b.csv')
 }
 
 @
 
-
+\include{results.tex}
 <<egraph,eval=FALSE>>=
 
 # first fuse with high density to get few predictors , might have to alter density to get what you want
