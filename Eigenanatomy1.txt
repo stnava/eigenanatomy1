@@ -394,7 +394,7 @@ its<-5
 nvecs<-6 # 0
 studynames<-c(  "NMF", "ICA", "sPCA", "v+sPCA", "sPICA","v+sPICA", "PCA","fastICA" )
 u<-1/20
-v<-1/40
+v<-1/2
 mp<-data.frame( studynames=studynames, 
                 uSparseness=c(u, -1*u, -1, -1, -1*u, -1*u, NA, NA), 
                 vSparseness=c( v, -1, -1*v, v, -1*v, v, NA, NA))
