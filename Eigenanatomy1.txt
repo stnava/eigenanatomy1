@@ -319,7 +319,7 @@ ${ c}^{k+1} \gets ({\bf Y^{\top}Y}){c}^{k}$  \Comment{Power Iteration.}\;
 ${ c}^{k+1} \gets \frac{{c}^{k+1}}{\| {c}^{k+1}\|}$ \Comment{Normalize}\;
  $k \gets k+1$\;
 }
-\hspace{0.5cm} return {c}
+\hspace{0.5cm} return ${c^k}
 }
 \small \caption{\bf Eigenanatomy: eanat (Sub Algorithm)}
 \end{algorithm}
