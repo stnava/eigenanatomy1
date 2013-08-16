@@ -716,7 +716,7 @@ for ( ii in c(1:nrow(mp)) ) {
 
 @
 
-\include{results.tex}
+\input{results.tex}
 Now we are done.  The results are: 
 \begin{enumerate}
 \item An anatomically interpretable decomposition.
