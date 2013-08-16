@@ -607,7 +607,7 @@ print(xtable(test))
 
 
 
-<<compareDecom, eval=TRUE>>=
+<<compareDecom, warning=FALSE, results='hide',eval=FALSE>>=
 its<-5
 nvecs<-6 # 0
 studynames<-c(  "NMF", "ICA", "sPCA", "v+sPCA", "sPICA","v+sPICA", "PCA","fastICA" )
