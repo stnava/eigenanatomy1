@@ -8,12 +8,13 @@
 \usepackage{geometry}
 \usepackage{url}
 \usepackage[boxed]{algorithm2e}
+\usepackage{booktabs}
 \usepackage{algorithmicx,algpseudocode}
 \newcommand{\argmax}{\operatornamewithlimits{argmax}}
 \newcommand{\argmin}{\operatornamewithlimits{argmin}}
 
 \begin{document}
-<<setup, include=FALSE, cache=FALSE,eval=TRUE>>=
+<<setup, include=FALSE, cache=FALSE,eval=FALSE>>=
 options(xtable.comment = FALSE)
 options(replace.assign=TRUE,width=90)
 options( digits = 4 )
@@ -31,7 +32,7 @@ library(xtable)
 library(fastICA)
 @
 
-<<definevars, include=FALSE, cache=FALSE,eval=TRUE>>=
+<<definevars, include=FALSE, cache=FALSE,eval=FALSE>>=
 qv<-1;mysig<-1
 @
 
@@ -292,7 +293,7 @@ ${\bf U} \gets$ {\texttt {ReconOpt}}(${\bf X}, {\bf V}$)\;
 \For{i=1 to k}{
 	${\bf X_{\backslash i}}  \gets {\bf X}- \sum_{j=1, i\neq j}^{k}{u_jv_j^{\top}}$\Comment{Deflate {\bf X}}\;
 	${v_i} \gets$ {{\texttt {SP}}}(${\bf X}_{\backslash i}, {\bf V},  \lambda,i$)\;
-	${\bf U} \gets$ {\texttt {ReconOpt}}(${\bf X}, {\bf V}$) \Comment{Where {\bf V} is the matrix with only its $i^{th}$ column updated. Other columns are same as previous iteration}\;
+	${\bf U} \gets$ {\texttt {ReconOpt}}(${\bf X}, {\bf V}$) \Comment{Where {\bf V} is the matrix with only its $i^{th}$ column updated. Other columns are the same as previous iteration}\;
 	}
 	}
 \KwOut {${\bf V}$}
@@ -306,26 +307,32 @@ ${\bf U} \gets$ {\texttt {ReconOpt}}(${\bf X}, {\bf V}$)\;
 \hspace{0.5cm}	${\bf U}   \gets ({\bf XX^{\top}})^{-1}{\bf XV}$ \Comment{Performs Ordinary Least Squares Regression.}\;
 \hspace{0.5cm} return {\bf U}
 }
-\SetKwFunction{KwFun}{SP}\;
-\KwFun{${\bf Y}$, ${\bf V}$, $\lambda$,i } \Comment{Sparse  Projection for finding $v_i$}\;
+
+\vspace{1cm}
+
+\SetKwFunction{KwFun}{SCGP}\;
+\KwFun{${\bf X}$, ${\bf V}$, $\lambda$,i } \Comment{Sparse Conjugate Gradient Projection for finding $v_i$}\;
 {
 \hspace{0.5cm}$k \gets 1$\;
 \hspace{0.5cm}${c}^k \gets {\bf V}_{:,i}$ \Comment{${\bf V}_{:,i}$ contains the $i^{th}$ eigenvector.}\;
 \hspace{0.5cm}${c}^k \gets$ {\texttt S}(${c}^k$,$\gamma$) \Comment{Soft-Max Thresholding.}\;
+\hspace{0.5cm}${g}^{k-1} \gets$ 1 \Comment{Initialize Gradient.}\;
+
 \While {${\Delta c} \leq \epsilon$ }{
-${ c}^{k+1} \gets ({\bf Y^{\top}Y}){c}^{k}$  \Comment{Power Iteration.}\;
- ${c}^{k+1} \gets$ {\texttt {Orthogonalize}}(${c}^{k+1}$,{ $\bf V_{:,\backslash i}$}) \Comment{Orthogonalize w.r.t all the other $k-1$ eigenvectors.}\;
+
+$ g^{k} \gets ({\bf X^{\top}X}){c}^{k}$  \Comment{Gradient.}\;
+$\gamma \gets  \frac{g^{k}\cdot g^{k}}{g^{k-1} \cdot g^{k-1}}$ \Comment{Conjugate Gradient.} \;
+$ d^{k} \gets g^{k}  + \gamma\cdot d^{k-1}$ \;
+${ c}^{k+1} \gets  {c}^k + d^{k}$  \;
+${c}^{k+1} \gets$ {\texttt {Orthogonalize}}(${c}^{k+1}$,{ $\bf V_{:,\backslash i}$}) \Comment{Orthogonalize w.r.t. all the other $k-1$ eigenvectors.}\;
  ${c}^{k+1} \gets$ {\texttt S}(${c}^{k+1}$,$\gamma$) \;
 ${ c}^{k+1} \gets \frac{{c}^{k+1}}{\| {c}^{k+1}\|}$ \Comment{Normalize}\;
  $k \gets k+1$\;
 }
-\hspace{0.5cm} return ${c^k}$
+\hspace{0.5cm} return ${c^{k+1}}$
 }
 \small \caption{\bf Eigenanatomy: eanat (Sub Algorithm)}
 \end{algorithm}
-
-
-
 
 
 \section{Results}
@@ -347,7 +354,7 @@ ANTsR illustration of eigenanatomy (eanat) in a p-value and a prediction study. 
 
 We read in the population data, template, mask, etc.
 
-<<readdata,eval=TRUE>>=
+<<readdata,eval=FALSE>>=
 tem<-antsImageRead('data/template_brain.nii.gz',3)
 bm<-antsImageRead('data/brain_mask.nii.gz',3)
 mask <- getMask("data/maskgb.nii.gz")
@@ -365,7 +372,7 @@ basedir<-'eanat_processing'
 
 Next we do the eanat decomposition.
 
-<<eigenanatomy,eval=TRUE>>=
+<<eigenanatomy,eval=FALSE>>=
 
 ####################
 its<-1           # max iterations in optimization
@@ -391,7 +398,7 @@ antsImageWrite(eigParcellation,'tempoutput/eigseg.nii.gz')
 @ 
 
 
-<<egraph,eval=TRUE>>=
+<<egraph,eval=FALSE>>=
 
 # first fuse with high density to get few predictors , might have to alter density to get what you want
 graphdensity <- 0.65 
@@ -403,7 +410,7 @@ fused<-joinEigenanatomy( mat, mask,  mydecom$eigenanatomyimages, graphdensity )
 
 Use the components to cross-validate a prediction model.
 
-<<prediction,eval=TRUE>>=
+<<prediction,eval=FALSE>>=
 #
 ### use the networks in prediction                   
 #
@@ -420,7 +427,7 @@ print(paste("prediction % misclassification" , dd * 100 ) )
 
 Use the components in a simple group comparison.
 
-<<pvalue,eval=TRUE>>=
+<<pvalue,eval=FALSE>>=
 #
 ###     perform a t-test on the networks    
 #
@@ -437,7 +444,7 @@ print(qv)
 
 
 
-<<vbm,eval=TRUE>>=
+<<vbm,eval=FALSE>>=
 #
 ###     perform a t-test on the voxels                                    
 ###     contrast bonferroni & FDR correction                          
@@ -465,7 +472,7 @@ antsImageWrite(vqvi,'vqvi_BH.nii.gz')
 
 Describe the components in terms of traditional coordinates. Also render the results. 
 
-<<figsetup,echo=TRUE,results='hide',warning=FALSE,message=FALSE, echo=FALSE,eval=TRUE>>=
+<<figsetup,echo=TRUE,results='hide',warning=FALSE,message=FALSE, echo=FALSE,eval=FALSE>>=
 #
 ### describe the significant networks 
 #
@@ -485,7 +492,7 @@ par3d(userMatrix = id )
 @
 
 This is the visual and anatomical description of the most significant network.
-<<describeit,echo=FALSE,results='hide',warning=FALSE,message=FALSE, echo=FALSE,dev='png', fig.width=4, fig.height=4, out.width='.5\\linewidth',eval=TRUE>>=
+<<describeit,echo=FALSE,results='hide',warning=FALSE,message=FALSE, echo=FALSE,dev='png', fig.width=4, fig.height=4, out.width='.5\\linewidth',eval=FALSE>>=
 opts_chunk$set(fig.path='figure/Eigenanatomy1-', fig.align='center', fig.show='asis',fig.keep='all')
 dir.create('figure')
 i<-mysig[1]
@@ -506,7 +513,7 @@ par3d(userMatrix = id )
 \end{figure}
 
 The anatomy of this component and Talairach coordinates.
-<<tableTest,results='asis',echo=FALSE,eval=TRUE>>=
+<<tableTest,results='asis',echo=FALSE,eval=FALSE>>=
 ntwkd<-signifnetworkdescriptor$networks[,c(1,2,3,4,7,8,9)]
 test <- data.frame( ntwkd )
 print(xtable(test))
@@ -514,7 +521,7 @@ print(xtable(test))
 
 The decomposition extracts regions that covary.  So, let's look at the anatomical correlations within this network.  
 
-<<netcorr,results='hide',echo=FALSE,warning=FALSE,message=FALSE,eval=TRUE>>=
+<<netcorr,results='hide',echo=FALSE,warning=FALSE,message=FALSE,eval=FALSE>>=
 nnodes<-nrow( cnt$centroids )
 clustimgs<-image2ClusterImages( cnt$clustimg , minThresh =1, maxThresh = nnodes )
 clustmat<-imageListToMatrix( clustimgs, mask )
@@ -536,7 +543,7 @@ dev.off()
 
 How do the individual networks vary across the whole population?
 
-<<spider,results='hide',echo=FALSE,warning=FALSE,message=FALSE,eval=TRUE>>=
+<<spider,results='hide',echo=FALSE,warning=FALSE,message=FALSE,eval=FALSE>>=
 row.names(clustmat)<-subjin
 con_avg<-apply( clustmat[1:ncon,],MARGIN=2,FUN=mean)
 mci_avg<-apply( clustmat[(ncon+1):nrow(myproj),],MARGIN=2,FUN=mean)
@@ -556,7 +563,7 @@ dev.off()
 
 
 Now let's look at the rest of the significant networks.
-<<describeit2,rgl=FALSE,echo=FALSE,results='hide',warning=FALSE,message=FALSE,dev='png', fig.width=4, fig.height=4, out.width='.5\\linewidth',eval=TRUE>>=
+<<describeit2,rgl=FALSE,echo=FALSE,results='hide',warning=FALSE,message=FALSE,dev='png', fig.width=4, fig.height=4, out.width='.5\\linewidth',eval=FALSE>>=
 opts_chunk$set(fig.path='figure/Eigenanatomy1-', fig.align='center', fig.show='asis',fig.keep='all')
 ct<-2
 for ( i in mysig[2:4] )
@@ -596,7 +603,7 @@ for ( i in mysig[2:4] )
 
 
 The anatomy of this component and Talairach coordinates.
-<<tableTest2,results='asis',echo=FALSE,warning=FALSE,message=FALSE,eval=TRUE>>=
+<<tableTest2,results='asis',echo=FALSE,warning=FALSE,message=FALSE,eval=FALSE>>=
 i<-mysig[2]
 mytem<-lappend( list(tem), mydecom$eigenanatomyimages[[ i ]] )
 signifnetworkdescriptor<-getMultivariateTemplateCoordinates(  mytem, mymni , convertToTal = TRUE , pvals = pv[ i ] , threshparam = 0.5, clustparam = cl,  identifier = "_Sig2", outprefix="./Z" )
@@ -607,7 +614,7 @@ print(xtable(test))
 
 
 
-<<compareDecom, warning=FALSE, results='hide',eval=TRUE>>=
+<<compareDecom, warning=FALSE, results='hide',eval=FALSE>>=
 its<-5
 nvecs<-6 # 0
 studynames<-c(  "NMF", "ICA", "sPCA", "v+sPCA", "sPICA","v+sPICA", "PCA","fastICA" )
