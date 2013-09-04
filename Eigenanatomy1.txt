@@ -428,17 +428,20 @@ ANTsR illustration of eigenanatomy (eanat) in a p-value and a prediction study. 
 We read in the population data, template, mask, etc.
 
 <<readdata,eval=FALSE>>=
-tem<-antsImageRead('data/template_brain.nii.gz',3)
-bm<-antsImageRead('data/brain_mask.nii.gz',3)
-mask <- getMask("data/maskgb.nii.gz")
-mat <- as.matrix( antsImageRead( 'data/thicknesspt25.mha' ,2 ) )
+tem<-antsImageRead('data/T_template0.nii.gz',3)
+bm<-antsImageRead('data/T_template0Mask.nii.gz',3)
+ImageMath(3,tem,"m",bm,tem)
+mask <- antsImageRead( 'data/mask88.nii.gz' ,3  )
+mat <- as.matrix( antsImageRead( 'data/matrix88.mha' ,2 ) )
 subjin<-read.csv('data/subjid.csv')[1:nrow(mat),]
 ncon<-48
 nmci<-nrow(mat)-ncon
 dx<-c(rep(0,ncon),rep(1,nmci))
 mydata<-data.frame( dx=dx, subjin = subjin , mat=mat )
-mydata_sub <- mydata[sample(1:nrow(mat), 50,   replace=FALSE),]
+mydata_sub <- mydata # [sample(1:nrow(mat), 50,   replace=FALSE),]
 basedir<-'eanat_processing'
+globalmean<-apply(mat,FUN=mean,MARGIN=1)
+print( t.test( globalmean[ dx == 0 ], globalmean[ dx == 1] ) )
 @
 
 \section{Reduce dimensionality}
@@ -448,12 +451,12 @@ Next we do the eanat decomposition.
 <<eigenanatomy,eval=FALSE>>=
 
 ####################
-its<-1           # max iterations in optimization
+its<-3           # max iterations in optimization
 nvecs<-11      # components to split data into ...
-usp<-( -1 )     # ICA style if abs( usp ) < 1 or nmf style if usp & vsp> 0
-vsp<-0.02        # components occupy 10% of the mask
+usp<-( 0.5 )     # ICA style if abs( usp ) < 1 or nmf style if usp & vsp> 0
+vsp<-0.13        # components occupy 10% of the mask
 ii<-0              # index for this study 
-cl<-50         # ignore small clusters 
+cl<-10         # ignore small clusters 
 sm<-1         # smoothing
 basedire<-paste(basedir,ii,'/',sep='')
 dir.create(file.path("./", basedire), showWarnings = FALSE)
@@ -473,9 +476,11 @@ antsImageWrite(eigParcellation,'tempoutput/eigseg.nii.gz')
 
 <<egraph,eval=FALSE>>=
 
-# first fuse with high density to get few predictors , might have to alter density to get what you want
-graphdensity <- 0.65 
+# first fuse with high density to get few predictors , might have to  alter density to get what you want
+graphdensity<-0.25
+print( graphdensity )
 fused<-joinEigenanatomy( mat, mask,  mydecom$eigenanatomyimages, graphdensity )
+print( dim( fused$fusedproj ) ) 
 
 @
 
@@ -503,6 +508,8 @@ Use the components in a simple group comparison.
 <<pvalue,eval=FALSE>>=
 #
 ###     perform a t-test on the networks    
+#
+# myproj<-fused$fusedproj # an option 
 #
 pv<-rep(NA, ncol(myproj) ) 
 for ( i in 1:ncol(myproj) )
@@ -570,13 +577,14 @@ opts_chunk$set(fig.path='figure/Eigenanatomy1-', fig.align='center', fig.show='a
 dir.create('figure')
 i<-mysig[1]
 mytem<-lappend( list(tem), mydecom$eigenanatomyimages[[ i ]] )
-if ( cl < 100 ) cl <- 100
-signifnetworkdescriptor<-getMultivariateTemplateCoordinates(  mytem, mymni , convertToTal = TRUE , pvals = pv[ i ] , threshparam = 0.5, clustparam = cl, identifier = "_Sig1", outprefix="./PP" )
+if ( cl < 50 ) cl <- 50
 f<-mydecom$eigenanatomyimages[[ i ]]
 cnt<-getCentroids( f, clustparam = cl, threshparam = 0.5 )
+signifnetworkdescriptor<-getTemplateCoordinates( list(tem , cnt$clustimg ) , mymni , convertToTal = TRUE, outprefix = "/tmp/Z" )
 brain<-renderSurfaceFunction( surfimg =list( bm ) , alphasurf=0.1 ,smoothsval = 1.5 , smoothfval = 1.0, funcimg=list(cnt$clustimg) , alphafunc=0.2 )
+# brain <-renderSurfaceFunction( list( temgm ), surfval=0.5 , smoothsval=2., smoothfval = 0,mycol=mycols, funcimg=list(f1,f2,f3,glass), alphafunc = myopac )
 plotBasicNetwork( centroids =  cnt$centroids , brain )
-make3ViewPNG(  rid, id, rid2,  paste('figure/network1',sep='') )
+dd<-make3ViewPNG(  rid, id, rid2,  paste('figure/network1',sep='') )
 par3d(userMatrix = id ) 
 @ 
 \begin{figure}[h]
@@ -587,9 +595,7 @@ par3d(userMatrix = id )
 
 The anatomy of this component and Talairach coordinates.
 <<tableTest,results='asis',echo=FALSE,eval=FALSE>>=
-ntwkd<-signifnetworkdescriptor$networks[,c(1,2,3,4,7,8,9)]
-test <- data.frame( ntwkd )
-print(xtable(test))
+print(xtable(signifnetworkdescriptor$templatepoints))
 @
 
 The decomposition extracts regions that covary.  So, let's look at the anatomical correlations within this network.  
@@ -601,7 +607,8 @@ clustmat<-imageListToMatrix( clustimgs, mask )
 means<-apply(clustmat,MARGIN=1,FUN=mean)
 clustmat<-clustmat/means
 clustmat<-mat %*% t(clustmat)
-colnames(clustmat)<-test$AAL[2:length(test$AAL)]
+aalnames<-signifnetworkdescriptor$templatepoints$AA
+colnames(clustmat)<-aalnames
 library(pheatmap)
 png('figure/within_network_correlation.png')
 pheatmap( cor( clustmat ) ,symm=T )
@@ -642,9 +649,11 @@ ct<-2
 for ( i in mysig[2:4] )
   {
   mytem<-lappend( list(tem), mydecom$eigenanatomyimages[[ i ]] )
-  signifnetworkdescriptor<-getMultivariateTemplateCoordinates(  mytem, mymni , convertToTal = TRUE , pvals = pv[ i ] , threshparam = 0.5, clustparam = cl,  identifier = "_Sig2", outprefix="./Z" )
   f<-mydecom$eigenanatomyimages[[ i ]]
-  cnt<-getCentroids( f , clustparam = cl, threshparam = 0.5  )
+  cnt<-getCentroids( f, clustparam = cl, threshparam = 0.5 )
+  signifnetworkdescriptor<-getTemplateCoordinates( list(tem ,
+  cnt$clustimg ) , mymni , convertToTal = TRUE, outprefix = "/tmp/Z" )
+  print( signifnetworkdescriptor$templatepoints )
   brain<-renderSurfaceFunction( surfimg =list( bm ) , alphasurf=0.1 ,smoothsval = 1.5 , smoothfval = 1.0, funcimg=list(cnt$clustimg) , alphafunc=0.2 )
   plotBasicNetwork( centroids =  cnt$centroids , brain )
   par3d(userMatrix = id ) 
@@ -679,10 +688,11 @@ The anatomy of this component and Talairach coordinates.
 <<tableTest2,results='asis',echo=FALSE,warning=FALSE,message=FALSE,eval=FALSE>>=
 i<-mysig[2]
 mytem<-lappend( list(tem), mydecom$eigenanatomyimages[[ i ]] )
-signifnetworkdescriptor<-getMultivariateTemplateCoordinates(  mytem, mymni , convertToTal = TRUE , pvals = pv[ i ] , threshparam = 0.5, clustparam = cl,  identifier = "_Sig2", outprefix="./Z" )
-ntwkd<-signifnetworkdescriptor$networks[,c(1,2,3,4,7,8,9)]
-test <- data.frame( ntwkd )
-print(xtable(test))
+f<-mydecom$eigenanatomyimages[[ i ]]
+cnt<-getCentroids( f, clustparam = cl, threshparam = 0.5 )
+signifnetworkdescriptor<-getTemplateCoordinates( list(tem , cnt$clustimg ) , mymni , convertToTal = TRUE, outprefix = "/tmp/Z" )
+print(xtable(signifnetworkdescriptor$templatepoints,caption="Say
+somethin here"))
 @
 
 
