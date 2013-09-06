@@ -529,6 +529,9 @@ print(qv)
 
 <<multivarregression,eval=FALSE>>=
 #
+#  this is similar to something paramveer did in a different context -
+#  i.e. cca on pca results
+#
 inds<-c(13,18,19,20,21,22,23,24,25,26,27,32,33)
 mydecom<-sparseDecom2( inmatrix=list(myproj,as.matrix(demog[,inds]) ), sparseness=c(0.2,0.2), nvecs=5, its=20, perms=2000 ) 
 @ 
