@@ -533,7 +533,17 @@ print(qv)
 #  i.e. cca on pca results
 #
 inds<-c(13,18,19,20,21,22,23,24,25,26,27,32,33)
-mydecom<-sparseDecom2( inmatrix=list(myproj,as.matrix(demog[,inds]) ), sparseness=c(0.2,0.2), nvecs=5, its=20, perms=2000 ) 
+cogmat<-as.matrix(demog[,inds])
+cogmat<-residuals( lm( cogmat ~  Age + Sex + Education , data = demog)
+)
+names( cogmat )<-names( demog )[inds]
+mydecom<-sparseDecom2( inmatrix=list(myproj, cogmat ), sparseness=c(0.2,-0.5), nvecs=5, its=20, perms=2000 ) 
+# report correspondences for 1st 2 evecs
+ind<-4
+wh1<-which( mydecom$eig1[,ind] > 0 )
+wh2<-which( mydecom$eig2[,ind] > 0 )
+print( wh1 )
+print( names( cogmat )[wh2] )
 @ 
 
 
