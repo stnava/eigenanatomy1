@@ -433,15 +433,19 @@ bm<-antsImageRead('data/T_template0Mask.nii.gz',3)
 ImageMath(3,tem,"m",bm,tem)
 mask <- antsImageRead( 'data/mask88.nii.gz' ,3  )
 mat <- as.matrix( antsImageRead( 'data/matrix88.mha' ,2 ) )
+globalmean<-apply(mat,FUN=mean,MARGIN=1)
+# mat<-residuals( lm( mat ~  globalmean ) )
 subjin<-read.csv('data/subjid.csv')[1:nrow(mat),]
+subjin<-as.numeric(as.character(substr(subjin,3,6)))
+subjin<-data.frame( EMMI=subjin )
+demog<-read.csv("Demographics_WolkScans.csv")
+demog<-merge(demog,subjin,by="EMMI")
 ncon<-48
 nmci<-nrow(mat)-ncon
 dx<-c(rep(0,ncon),rep(1,nmci))
-mydata<-data.frame( dx=dx, subjin = subjin , mat=mat )
+mydata<-data.frame( demog, dx=dx, mat=mat )
 mydata_sub <- mydata # [sample(1:nrow(mat), 50,   replace=FALSE),]
 basedir<-'eanat_processing'
-globalmean<-apply(mat,FUN=mean,MARGIN=1)
-print( t.test( globalmean[ dx == 0 ], globalmean[ dx == 1] ) )
 @
 
 \section{Reduce dimensionality}
@@ -461,7 +465,7 @@ sm<-1         # smoothing
 basedire<-paste(basedir,ii,'/',sep='')
 dir.create(file.path("./", basedire), showWarnings = FALSE)
 # if ( ! exists('mydecom') )
-  mydecom<-sparseDecom( as.matrix(mydata[,3:ncol(mydata_sub)]), mask,  sparseness=vsp, nvecs=nvecs, its=its, cthresh=cl, statdir=basedire,smooth=sm, z=usp)
+  mydecom<-sparseDecom(  mat, mask,  sparseness=vsp, nvecs=nvecs, its=its, cthresh=cl, statdir=basedire,smooth=sm, z=usp)
 #  mydecom<-sparseDecom( as.matrix(mydata_sub[,3:ncol(mydata_sub)]), mask,  sparseness=vsp, nvecs=nvecs, its=its, cthresh=cl, statdir=basedire,smooth=0.0, z=usp)
 decom1<-mydecom$umatrix
 decom2<-imageListToMatrix( mydecom$eigenanatomyimages, mask)
