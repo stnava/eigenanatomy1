@@ -41,16 +41,16 @@ qv<-1;mysig<-1
 %\author{Brian B. Avants}
 \begin{abstract}
 Eigenanatomy is a general formulation for sparse component analysis of
-medical imaging data.  Eigenanatomy (Eanat) may be used to reduce the
+medical imaging data.  Eigenanatomy (EANAT) may be used to reduce the
 dimensionality of large datasets to a manageable size, extract
 covarying patterns from structural or functional imaging or to
 identify ``network" predictors that may be used in standard population
-analyses.  The Eanat framework implements a variety of possible sparse
+analyses.  The EANAT framework implements a variety of possible sparse
 decompositions where we may force components to be smooth along an
 anatomical manifold.  Here, we summarize this new framework from a
 theoretical and practical perspective.  Early results in a cortical
 thickness study of Mild Cognitive Impairment (MCI) highlight
-advantages with respect to voxel-wise methods.  We also contrast Eanat
+advantages with respect to voxel-wise methods.  We also contrast EANAT
 results with PCA and fast-ICA.  The study software and data are
 publicly available in a free framework, ANTsR, based on ANTs (image
 registration, segmentation, bias correction) and R
@@ -96,13 +96,19 @@ each component to consist of contributions from only a few components
 from the higher dimensional space. 
 \item Non-negative Matrix Factorization
 (NMF)~\cite{paatero1994positive}: It constrains the components to be
-positive, which also often results in sparse components
-\cite{lee_learning_1999}.  
+positive i.e. each learned component of the dictionary is a positive
+sum of positive ``parts'' rather than a sparse sum of positive or
+negative parts. The main motivation behind NMF is to come up
+with ``parts-based representations'' which transforms unstructured
+data into more interpretable pieces
+\cite{Lee1999,sparseNMF_hoyer,lee_learning_1999}. Alternatively, one
+could drop the positivity constraint and impose the sparsity
+constraint. Then its called sparse matri factorization.
 \item Independent Component Analysis
 (ICA)~\cite{hyvarinen2000independent}: It is motivated by
 the ``blind source separation'' problem: Given a data matrix that
 contains information from a variety of sources, how can we uncover the
-original sources?  It optimized statistical independence among the
+original sources?  It optimizes statistical independence among the
 basis vectors.  Because of the different motivation of ICA, its
 notation is usually different from SPCA and NMF, making comparisons
 between the various methods difficult.
@@ -110,38 +116,50 @@ between the various methods difficult.
 
  These methods have been used to obtain state-of-the-art
 accuracies in a variety of problems in Machine Learning. However, their usage
-in medical imaging, though increasing, is stifled by the fact that
+in medical imaging, though increasing, is limited by the fact that
 they are used as out-of-the-box techniques and are seldom tailored to
 the domain specific constraints/knowledge pertaining to medical
-imaging. This limits their popularity especially among clinicians who
-are more interested in clinical interpretability rather than just
-predictive accuracy. In this paper, we propose to bridge this gap. 
+imaging.  For instance, uninformed, generic matrix decomposition methods, e.g. standard principal component analysis (PCA) or ICA, may be difficult to interpret because the solutions will produce vectors that are everywhere non-zero, i.e. involve the whole brain rather than its parts.  
 
-Eigenanatomy is a general framework that is closely related to SPCA,
-NMF, and a version of ICA.  The specific constraints implemented
+This limits their popularity especially among clinicians who
+are often as interested in clinical interpretability as predictive
+accuracy. Sparse methods have sought to resolve this issue \cite{sparseNMF_hoyer,Witten2010,Friedman2010,Cherkassky2009,Friedman2008}.  However, these recent sparse multivariate methods are anatomically uninformed {and which may lead to unstable results} \cite{Xu2011}.
+ In this paper, we propose to bridge this gap by providing
+matrix decomposition techniques regularized by neuroanatomically inspired smoothness
+and connectedness terms.   
+
+Eigenanatomy (EANAT) is a general framework that is closely related to SPCA,
+NMF, and a version of ICA~\footnote{Log hyperbolic cosine sparsity
+penalty.}.  The goal of EANAT is to statistically learn the boundaries
+of and connections between brain regions by weighing both data and
+prior neuroanatomical guidance. Recent work points to the fact that exploiting problem-specific information can improve parts-based representations \cite{Guan2011,Cai2010,Hosoda2009}. EANAT component images, on the other hand, {enable prior knowledge to enhance solution stability} and are tied to a set of neuroanatomical coordinates that are {\em connected}, {\em smooth} and may also be defined by {\em non-negative} weights. 
+
+
+The specific constraints implemented
 within each of these methods alter the patterns that are extracted.
 Each algorithm has a different history, employs different theoretical
 arguments and is favored in a different community.  The optimization
 methods are also heterogeneous, making it challenging to know, when
 comparing different implementations of the algorithms, whether the
 theoretical or practical differences are the root of performance
-variation. To address this concern, we implement Eigenanatomy
+variation. To address this concern, we implement EANAT
 decompositions with respect to a consistent data-term and then enforce
 smoothness and sparsity constraints inspired by Sparse PCA (SPCA), ICA and NMF.  This allows us to compare positively
 constrained decompositions (as with NMF) to ICA and SPCA-like
 decompositions.
+
+
 
 Our main contributions in this paper are:
 
 \begin{enumerate}
 \item From a theoretical  standpoint, we provide a unified objective
 function inspired by PCA, NMF and ICA which allows us to incorporate different aspects of each kind of
-decomposition into a single decomposition. 
-\item From a practical standpoint, provide a  general framework,
-including uniform optimization algorithms, that allow for
+decomposition into a single framework. 
+\item From a practical standpoint, provide uniform optimization algorithms, that allow for
 easy comparison of the decompositions without the confounds of
 different implementation strategies.
-\item Customization of Eanat for neuroimaging by using domain specific
+\item Customization of EANAT for neuroimaging by using domain specific
 sparsity and smoothness constraints which aid interpretability of
 results and give superior predictive performance.
 \item A thorough evaluation involving comparison with standard
@@ -150,34 +168,27 @@ approaches; and finally the public availability of our toolkit.
 
 
 The remaining paper is organized as follows; we first describe the various dimensionality reduction methods and provide a unified objective for them.
-Then we describe our Eanat theoretical framework and detail how the
+Then we describe our EANAT theoretical framework and detail how the
 framework may be extended to implement neuro or medical imaging
 specific decompositions.  Finally, we outline our optimization
 algorithm and provide experimental evaluation.
 
-\section{Eigenanatomy (Eanat)}
-In this section we describe the various matrix decomposition
-techniques and provide a unified objective for them.  Finally, we show
-how one can define hybrid matrix decomposition methods by using
-different aspects of the different approaches.
+\section{Eigenanatomy (EANAT)}
+The class of methods encompassing NMF, ICA, SPCA and singular value
+decomposition \cite{Sill2011,Lee2010b,Yeung2002} form the basis for
+the approach proposed here. So, firstly, we describe SPCA, ICA and NMF
+through a common lens and provide a unified objective for them.  Finally, we show
+how one can define hybrid matrix decomposition methods by combining different approaches.
 
 
-\subsection{Motivation}
+%\subsection{Motivation}
 
-The goal of Eanat is to statistically learn the boundaries of and connections between brain regions by weighing both data and prior anatomical guidance.  In machine learning, such decompositions are termed ``parts-based representations'' because they transform unstructured data into interpretable pieces \cite{Lee1999,sparseNMF_hoyer}.  Recent work in machine learning points to the fact that exploiting problem-specific information can improve parts-based representations \cite{Guan2011,Cai2010,Hosoda2009}.  Uninformed, generic matrix decomposition methods, e.g. standard principal component analysis (PCA) or ICA, may be difficult to interpret because the solutions will produce vectors that are everywhere non-zero, i.e. involve the whole brain rather than its parts.  Sparse methods have sought to resolve this issue \cite{sparseNMF_hoyer,Witten2010,Friedman2010,Cherkassky2009,Friedman2008}.  However, these recent sparse multivariate methods are anatomically uninformed {and which may lead to unstable results} \cite{Xu2011}. Eigenanatomy component images, on the other hand, {enable prior knowledge to enhance solution stability} and are tied to a set of neuroanatomical coordinates that are {\em connected}, {\em smooth} and may also be defined by {\em non-negative} weights. 
 
 % tester
 % They are developed without the specific concerns of neuroimaging and anatomy taken into account.  That is, most existing implementations of machine learning methods ignore the neuroanatomical constraints necessary for biological plausibility and stable optimization of problems involving imaging.  Here, we propose a foundation for computing sparse eigenanatomy based on optimization of a penalized statistical criterion that incorporates anatomical priors.  
 % Thus we implement an optimization-based, one-step computation to replace more ad hoc alternatives \cite{Tamnes2010,Wang2009,Walhovd2009} that typically rely on computing a $p \times p$ ($p=$number of voxels) correlation matrix followed by post-processing.  
 
 % The class of eigenanatomy algorithms will approximate neuroimaging data with a set of sparse biologically plausible component images.   
-
-The most critical eigenanatomy contribution is that each component image is tied to a set of neuroanatomical coordinates that are {\em connected}, {\em smooth} and are defined by {\em non-negative} weights.  Alhough this latter constraint can be relaxed, non-negativity improves our ability to interpret data by preventing weights from being both positive and negative within the same eigenanatomy component.  Also, non-negativity means that the projections of eigenanatomy into subject space are simply weighted averages of the input data (e.g. cortical thickness values) for each subject.   
-
-The class of methods encompassing NMF, ICA, SPCA and singular value
-decomposition \cite{Sill2011,Lee2010b,Yeung2002} form the basis for
-the approach proposed here. So, before we proceed further, we describe SPCA,
-ICA and NMF through a common lens. 
 
 
 %A variety of methods exist for formulating the approximating matrix $\Xh$ and also for the penalties associated with the approximation.  First, we denote each eigenanatomy component as $%{\bf e}_i$ where $i$ is ordered such that each eigenanatomy from ${\bf e}_1$ to ${\bf e}_m$ provides a decreasing contribution to the accuracy of the estimate matrix.  Note that %eigenanatomy is orthogonal, ${\bf e}_i \perp {\bf e}_j  \forall i \ne j$, and (by definition) {\em sparse}.  Typically, $\Xh$ will be derived from $m < n$ vectors where $n$ is the number %of subjects. 
@@ -188,13 +199,16 @@ ICA and NMF through a common lens.
 
 
 \subsection{Notation}
-Define a $n\times p$ (rows by columns) matrix ${\bf X }$, where $n$ is the number of observations (subjects) and  $p$ is the number of total voxels.
+Define a $n\times p$ (rows by columns) matrix ${\bf X }$, where $n$ is
+the number of observations (subjects) and  $p$ is the number of total
+voxels. For instance, ${\bf X}$ can be the cortical thickess
+measurements or the fMRI time series for all the $n$ subjects.
 We seek a sparse decomposition of the ${\bf X}$ matrix  into two matrices
 $U$ and $V$, (such $X \approx UV^{\top}$), where $U \in \mathbb{R}^{n
 \times k}$ is the loading matrix and $V \in \mathbb{R}^{p \times k}$
 is the coefficient matrix. More generally, we seek an approximation $\hat{X}$ (for instance in the above case $\hat{X}= UV^{\top}$) to the data matrix matrix $X$,
 \begin{equation}
-\min \|X-\hat{X} \|^2_F
+\min \|X-\hat{X} \|^2_F,
 \end{equation}
 
 
@@ -211,7 +225,7 @@ The standard PCA objective function is
 \end{equation}
 The above optimization can be solved easily by performing Singular
 Value Decomposition (SVD) of the data covariance matrix ${\bf
-X^{\top}X}$ or one iteratively using, for instance, power iteration.
+X^{\top}X}$ or iteratively using, for instance, Arnoldi iteration~\cite{}.
 
 A potential problem with standard PCA is that the low-dimensional
 components it finds consist of contributions from each of the $p$
@@ -221,7 +235,7 @@ a domain like brain imaging.
 
 Sparse PCA (SPCA) augments this objective function by firstly seeking
 the approximation of $X$ instead of $X^{\top}X$ and further putting an $\ell_1$ sparsity
-constraint on the columns of $V$. Unlike, standard PCA, SPCA does not normally include an explicit orthogonality constraint, as the reconstruction error term makes the orthogonality less important \cite{le_ica_2011}.
+constraint on the columns of $V$. Its worth noting that unlike standard PCA, SPCA does not normally include an explicit orthogonality constraint. The reconstruction error term makes the orthogonality less important \cite{le_ica_2011}.
 \begin{equation}
 \begin{aligned}
 &\underset{U,V}{\operatorname{arg\,min}} & & \| X - UV^{\top} \|_2^2 + \lambda \sum_i \|V_i\|_1
@@ -246,7 +260,7 @@ notation is different.  The $X$ matrix in SPCA is usually transposed
 \cite{hyvarinen1999fast}, and $U$ and $V\transpose$ are known as $s$
 and $A$ respectively.  (Because the $X$ is transposed, the ICA
 decomposition is normally written as $X = As$.).  ICA seeks to impose
-statistical ``independence'' on the \textit{sources}, not the coefficient vectors, its constraints act on the $U$ matrix, not the $V$ matrix: 
+statistical ``independence'' on the \textit{sources}, not the coefficient vectors. Its constraints act on the $U$ matrix, not the $V$ matrix: 
 \begin{equation}
 \begin{aligned}
 &\underset{U,V}{\operatorname{arg\,min}} & & \| X - UV^{\top} \|_2^2 + \lambda p(U),
@@ -260,7 +274,7 @@ Although there are many ways to optimize for statistical independence (or ``non-
 &\underset{U,V}{\operatorname{arg\,min}} & & \| X - UV^{\top} \|_2^2 + \lambda \sum_i \|U_i\|_1.
 \end{aligned}
 \end{equation}
-It is worth noting that though we have cast SPCA and ICA in the same framework but still there are differences between the two in addition to what is described above. 
+It is worth noting that though we have cast SPCA and ICA in the same objective but still there are differences between the two in addition to what is described above. 
 
 Firstly, the connection between SPCA and ICA is tied to the assumption of using a log hyperbolic cosine penalty; if we were to use some other penalty then there might not be an obvious similarity between SPCA and ICA, which makes sense as SPCA considers only upto second order moments whereas ICA optimizes fourth order moments. 
 
@@ -268,12 +282,11 @@ Secondly, since SPCA tries to find directions capturing decreasing variance (sec
 
 
 
-\section{Eanat Objective} 
+\section{EANAT Objective} 
 
-Now, we are in a position to define the Eanat optimization problem.
-
-Eanat objective uses a hybrid decomposition schemes which borrow ideas
-from SPCA and ICA and further augments it with neurobiologically specific penalty terms.
+EANAT objective uses a hybrid decomposition schemes which borrow ideas
+from SPCA and ICA and further augments it with neuroanatomically
+specific penalty terms. EANAT seeks to represent each component image with a set of neuroanatomical coordinates that are {\em connected}, {\em smooth} and are defined by {\em non-negative} weights.  Alhough this latter constraint can be relaxed, non-negativity improves our ability to interpret data by preventing weights from being both positive and negative within the same eigenanatomy component.  Also, non-negativity means that the projections of eigenanatomy into subject space are simply weighted averages of the input data (e.g. cortical thickness values) for each subject.   
 
 
 \begin{equation}
@@ -285,29 +298,31 @@ component of the penalty and $\lambda_2$ controls the sparsity of the
 SPCA component of the penalty.  $S(\cdot)$, the sparsity penalty, is defined as follows,
 
 \begin{eqnarray}
-S( {\bf W} ) =\sum_{i=1}^k \|G_{\sigma}\times w_i \|_1,\\ \notag
-\forall_{i \ne j} \langle {\bf w}_j ,  {\bf w}_i \rangle = 0~,~{\bf w}_i \succeq 0~,~\|S( {\bf w} )-\gamma\|_1 \leq \epsilon \\ \notag
+S( {\bf V} ) =\sum_{i=1}^k \|G_{\sigma}\times v_i \|_1,\\ \notag
+\forall_{i \ne j} \langle {\bf v}_j ,  {\bf v}_i \rangle = 0~,~{\bf v}_i \succeq 0~,~\|S( {\bf v} )-\gamma\|_1 \leq \epsilon \\ \notag
 \end{eqnarray}
 $\gamma$ is a user defined sparsity parameter which controls the
-number of non-zero voxels in the brain. $G_{\sigma}$ is a kernel matrix which
-enforces smoothness and connectedness among the different eanat
-components along the anatomical manifold. When $G_{\sigma}$ is equal  to $I$ (identity matrix), it
+number of non-zero entries in the solution. $G_{\sigma}$ is a kernel matrix which
+enforces smoothness and connectedness among the different EANAT
+components along the anatomical manifold. When then $G_{\sigma}$ operator is equal  to $I$ (identity matrix), it
 reduces to a simple $\ell_1$ penalty.
 
-Its worth noting a few points about the Eanat objective:
+Its worth noting a few points about the EANAT objective:
 
 \begin{itemize}
 
- \item Eanat enforces orthogonality between the Eanat componenents.  
+ \item EANAT enforces orthogonality between the EANAT componenents.  
   
 \item  Non-negativity of the components means that the projections of eigenanatomy into subject space are simply weighted averages of the input data (e.g. cortical thickness values) for each subject.   Although this constraint can be relaxed, non-negativity improves our ability to interpret data by preventing weights from being both positive and negative within the same eigenanatomy component. As such, one may compute effect sizes and interpret statistics directly, for example, ``reductions in posterior cingulate cortical thickness reduce performance on memory-related psychometrics.''  
 
 \item Sparsity is enforced by an $\ell_1$ penalty as in common in machine
 learning\cite{sparseNMF_hoyer,sparseNMF_kim,sparseNMF_heiler,sparsePCA_zou,sparsePCA_jordan,sparsePCA_journee,Gandy2010,Chennubhotla2001,Lee2011}.
-In practice, we enforce sparsity and smoothness of the Eanat components by a non-linear conjugate gradient
-projection method (described in next section).   The optimal $\gamma^\star$ is identified by a binary search. 
+In practice, we enforce sparsity and smoothness of the EANAT components by a non-linear conjugate gradient
+projection method (described in next section).   
 The algorithm thresholds $w_i$ by $\gamma$, clusters $v_i$ and then
-smooths $v_i$ then computes sparsity constraint i.e. $\|v_i\|_0=\gamma$.   The search is continued until $\gamma=\gamma^\star$.  Finally, the
+smooths $v_i$ then computes sparsity constraint
+i.e. $\|v_i\|_0=\gamma$.  The optimal $\gamma^\star$ is identified by
+performing a binary search until $\gamma=\gamma^\star$.  Finally, the
 constraints are again  applied starting with the $\ell_1$ threshold $\gamma^\star$.  
 
 \end{itemize}
@@ -319,11 +334,11 @@ anatomically reasonable results as we show in the experiments section.
 
 
 
-\subsection{Eigenanatomy Implementation} 
+\subsection{EANAT Implementation} 
 
 %\noindent{\bf Eigenanatomy optimization algorithm.}  We will implement our own Arnoldi iteration (similar to \cite{Gandy2010,sparsePCA_journee}) and the gradient-based methods %proposed in \cite{Cai2010} and also in \cite{Lee1999}.  We will develop the general framework and matrix representation above starting with the classic Arnoldi iteration method.  Thi%s technique is appropriate for large-scale problems and fits within the standard alternating minimization approach used by NMF and SPCA methods \cite{Gandy2010}.  
 
-One could optimize the eanat objective in Equation~\ref{eq:eanat} using an iterative approach like power iteration. However, since the enact objective is non-convex we risk the chance of getting stuck in a bad local optima. Specifically, with that in mind, we propose a novel optimization algorithm for the eanat objective; particularly, we ``deflate'' our data matrix {\bf X} (factoring out the effect of other eigenvectors) between computations of different eigenvectors, which leads to better solutions~\citep{mackey08}. The deflation based optimization entails performing an additional ordinary least squares regression (OLS) step and can be motivated as follows.
+One could optimize the EANAT objective in Equation~\ref{eq:eanat} using an iterative approach like aronoldi iteration. However, since the EANAT objective is non-convex we risk the chance of getting stuck in a bad local optima. Specifically, with that in mind, we propose a novel optimization algorithm for the eanat objective; particularly, we ``deflate'' our data matrix {\bf X} (factoring out the effect of other eigenvectors) between computations of different eigenvectors, which leads to better solutions~\citep{mackey08}. The deflation based optimization entails performing an additional ordinary least squares regression (OLS) step and can be motivated as follows.
 
 
 We know that the best rank `k' reconstruction of a matrix  i.e. $\argmin_{\hat{\bf X}} \|\bf X~-~\hat{X} \|_F^2$, is provided by its first `k' eigenvectors~\citep{eckart} i.e. $\hat{\bf X}=\sum_{i=1}^k d_k{u}_k{v}_k^{\top}$.
@@ -488,7 +503,7 @@ print( dim( fused$fusedproj ) )
 
 @
 
-\section{Eanat prediction}
+\section{EANAT prediction}
 
 Use the components to cross-validate a prediction model.
 
@@ -505,7 +520,7 @@ print(paste("prediction % misclassification" , dd * 100 ) )
 
 @ 
 
-\section{Eanat morphometry}
+\section{EANAT morphometry}
 
 Use the components in a simple group comparison.
 
@@ -572,7 +587,7 @@ antsImageWrite(vqvi,'vqvi_BH.nii.gz')
 
 
 
-\section{Eanat interpretation}
+\section{EANAT interpretation}
 
 Describe the components in terms of traditional coordinates. Also render the results. 
 
