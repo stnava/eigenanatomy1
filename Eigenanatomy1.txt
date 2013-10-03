@@ -51,7 +51,7 @@ anatomical manifold.  Here, we summarize this new framework from a
 theoretical and practical perspective.  Early results in a cortical
 thickness study of Mild Cognitive Impairment (MCI) highlight
 advantages with respect to voxel-wise methods.  We also contrast EANAT
-results with PCA and fast-ICA.  The study software and data are
+results with other sparse decomposition methods.  The study software and data are
 publicly available in a free framework, ANTsR, based on ANTs (image
 registration, segmentation, bias correction) and R
 (the statistical programming platform).
@@ -81,6 +81,9 @@ measurements together.  This also facilitates data inspection which is
 challenging when using univariate approaches to data with several
 thousand or more variables.
 
+
+
+
 There are three commonly used methods for data driven dimensionality
 reduction: 
 \begin{itemize}
@@ -93,26 +96,34 @@ proposed to deal with this issue.  One common method is Sparse PCA (SPCA)
 \cite{jolliffe_simplified_2000,shen2008sparse,guan2009sparse}.  Sparse
 PCA incorporates penalties on the matrix decomposition to encourage
 each component to consist of contributions from only a few components
-from the higher dimensional space. 
+from the higher dimensional space. Another related technique is sparse
+coding~\cite{Lee2006,Mairal2010} (or dictionary learning)~\cite{varoquaux2011multi,abraham2013extracting},  which is motivated more from a
+neurological perspective and way the human cortex processes information~\cite{Olshausen2004}.
 \item Non-negative Matrix Factorization
 (NMF)~\cite{paatero1994positive}: It constrains the components to be
 positive i.e. each learned component of the dictionary is a positive
 sum of positive ``parts'' rather than a sparse sum of positive or
 negative parts. The main motivation behind NMF is to come up
 with ``parts-based representations'' which transforms unstructured
-data into more interpretable pieces
-\cite{Lee1999,sparseNMF_hoyer,lee_learning_1999}. Alternatively, one
+data into more interpretable pieces\cite{Lee1999,sparseNMF_hoyer,lee_learning_1999,berry2007algorithms}. Alternatively, one
 could drop the positivity constraint and impose the sparsity
-constraint. Then its called sparse matri factorization.
+constraint. Another variant involves imposing
+sparsity in addition to positivity which is called non-negative sparse coding~\cite{sparseNMF_hoyer}.
 \item Independent Component Analysis
 (ICA)~\cite{hyvarinen2000independent}: It is motivated by
 the ``blind source separation'' problem: Given a data matrix that
 contains information from a variety of sources, how can we uncover the
 original sources?  It optimizes statistical independence among the
-basis vectors.  Because of the different motivation of ICA, its
-notation is usually different from SPCA and NMF, making comparisons
-between the various methods difficult.
+basis vectors.  Note that PCA, owing to its gaussianity assumption identifies the true sources only upto a rotation, so we need a
+non-gaussianity assumption (prior/regularization) on the sources to
+recover the true sources.
+Because of the different motivation of ICA, and slightly different
+notation it makes comparisons between the various methods difficult.
 \end{itemize}
+
+All these methods fall into the more general class of sparse matrix
+factorization framework-- each making a different set of assumptions.
+They can be viewed through a common lens as we show in next section.
 
  These methods have been used to obtain state-of-the-art
 accuracies in a variety of problems in Machine Learning. However, their usage
@@ -128,7 +139,7 @@ accuracy. Sparse methods have sought to resolve this issue \cite{sparseNMF_hoyer
 matrix decomposition techniques regularized by neuroanatomically inspired smoothness
 and connectedness terms.   
 
-Eigenanatomy (EANAT) is a general framework that is closely related to SPCA,
+Eigenanatomy (EANAT) is a general framework for sparse matrix factorization that is closely related to SPCA,
 NMF, and a version of ICA~\footnote{Log hyperbolic cosine sparsity
 penalty.}.  The goal of EANAT is to statistically learn the boundaries
 of and connections between brain regions by weighing both data and
@@ -144,7 +155,7 @@ comparing different implementations of the algorithms, whether the
 theoretical or practical differences are the root of performance
 variation. To address this concern, we implement EANAT
 decompositions with respect to a consistent data-term and then enforce
-smoothness and sparsity constraints inspired by Sparse PCA (SPCA), ICA and NMF.  This allows us to compare positively
+smoothness and sparsity constraints inspired by SPCA, ICA and NMF.  This allows us to compare positively
 constrained decompositions (as with NMF) to ICA and SPCA-like
 decompositions.
 
@@ -154,7 +165,7 @@ Our main contributions in this paper are:
 
 \begin{enumerate}
 \item From a theoretical  standpoint, we provide a unified objective
-function inspired by PCA, NMF and ICA which allows us to incorporate different aspects of each kind of
+function for sparse matrix factorization inspired by SPCA, NMF and ICA which allows us to incorporate different aspects of each kind of
 decomposition into a single framework. 
 \item From a practical standpoint, provide uniform optimization algorithms, that allow for
 easy comparison of the decompositions without the confounds of
@@ -204,79 +215,123 @@ the number of observations (subjects) and  $p$ is the number of total
 voxels. For instance, ${\bf X}$ can be the cortical thickess
 measurements or the fMRI time series for all the $n$ subjects.
 We seek a sparse decomposition of the ${\bf X}$ matrix  into two matrices
-$U$ and $V$, (such $X \approx UV^{\top}$), where $U \in \mathbb{R}^{n
-\times k}$ is the loading matrix and $V \in \mathbb{R}^{p \times k}$
-is the coefficient matrix. More generally, we seek an approximation $\hat{X}$ (for instance in the above case $\hat{X}= UV^{\top}$) to the data matrix matrix $X$,
-\begin{equation}
-\min \|X-\hat{X} \|^2_F,
+$U$ and $V$, (such that $X \approx UV^{\top}$). The ${\bf U}$ matrix,
+which is of size $p\times k$ is typically called the 
+{\it factor loading matrix} and each of its columns is a basis vector
+for approximating the {\bf X} matrix or sometimes it is also called a {\it
+dictionary}, in the sparse coding literature where each of its columns
+is an {\it atom}. The ${\bf V}$ matrix of size $n \times k$ is called the
+{\it coefficient matrix} or the {\it latent vectors}. 
+
+ \begin{equation}
+\underset{U, V}{\operatorname{arg\,min}} 
+\|{\bf X} - {\bf UV^{\top}} \|_F^2 
+\label{sparse:matrix}
 \end{equation}
 
+Now, there are three keys aspects of the above objective that a
+researcher might care about and might want to tailor to the
+requirements of a specific domain.
 
- As mentioned earlier, there are a variety of ways to perform the
- above decomposition and create an approximation to $X$.
-\subsection{Sparse Principal Component Analysis (SPCA)}
+\begin{enumerate}
+\item Sparsity: Should the ${\bf U}$ and/or ${\bf V}$ matrices be sparse? 
+\item Orthogonality: Should each of ${\bf U}$ and ${\bf V}$ matrices have
+orthogonal columns i.e. $\forall 1\leq i < k\;\; u_i \perp u_j $ and $ v_i
+\perp v_j $ ? In addition to this, should the columns of {\bf $U$} be
+orthogonal to the columns of {\bf $V$}. 
+\item Positivity: Should the entries of ${\bf U}$ and/or ${\bf V}$
+matrices be only positive?
+\end{enumerate}
 
-The standard PCA objective function is 
-\begin{equation}
-\begin{aligned}
-&\underset{U,U}{\operatorname{arg\,min}} & & \| X^{\top}X - UU^{\top} \|_2^2 \\
-&\text{subject to} & &U^{\top} U = I_p.
-\end{aligned}
-\end{equation}
-The above optimization can be solved easily by performing Singular
-Value Decomposition (SVD) of the data covariance matrix ${\bf
-X^{\top}X}$ or iteratively using, for instance, Arnoldi iteration~\cite{}.
+Broadly, this gives rise to four different algorithms
+
+\subsection{Principal Component Analysis (PCA)}
+In standard PCA, ${\bf U}$, and ${\bf V}$ are orthogonal and are
+related by ${\bf V} = {\bf U^{\top}X}$. The matrix ${\bf U}$ is 
+estimated by performing singular value decomposition (SVD) on the
+correlation matrix ${\bf X^{\top}X}$ and contains the `k' 
+eigenvectors with the largest eigenvalues as its columns.
+
 
 A potential problem with standard PCA is that the low-dimensional
 components it finds consist of contributions from each of the $p$
 components of the high-dimensional space, which can be undesirable in
 a domain like brain imaging. 
 
-
-Sparse PCA (SPCA) augments this objective function by firstly seeking
-the approximation of $X$ instead of $X^{\top}X$ and further putting an $\ell_1$ sparsity
-constraint on the columns of $V$. Its worth noting that unlike standard PCA, SPCA does not normally include an explicit orthogonality constraint. The reconstruction error term makes the orthogonality less important \cite{le_ica_2011}.
+\subsection{Sparse Principal Component Analysis (SPCA) }
+Sparse PCA (SPCA) augments the objective function presented in
+Equation~\ref{sparse:matrix}  by putting an $\ell_1$ sparsity
+constraint on the columns of $U$. Its worth noting that unlike
+standard PCA, SPCA does not normally include an explicit orthogonality
+constraint. The reconstruction error term makes the orthogonality less
+important \cite{le_ica_2011}. If we were to enforce sparsity on the
+coefficients matrix {$\bf V$} instead of the loadings matrix {$\bf
+U$}, then we get the {\it sparse coding}~\cite{Lee2006,Mairal2010} or
+{\it sparse dictionary
+learning}~\cite{varoquaux2011multi,abraham2013extracting} objective. 
 \begin{equation}
 \begin{aligned}
-&\underset{U,V}{\operatorname{arg\,min}} & & \| X - UV^{\top} \|_2^2 + \lambda \sum_i \|V_i\|_1
+&\underset{U,V}{\operatorname{arg\,min}} \| X - UV^{\top} \|_2^2 + \lambda \sum_i \|U_i\|_1
 \end{aligned}
 \end{equation}
 
-\subsection{Non-negative Matrix Factorization (NMF)}
 
-NMF requires both $U$ and $V$ to be non-negative.  
+\subsection{Non-negative Matrix Factorization}
+NMF requires both $U$ and $V$ to be non-negative. There are no
+orthogonality constraints as earlier.  
 \begin{equation}
 \begin{aligned}
 &\underset{U, V}{\text{minimize}} &&\| \mathbf{X} - UV^{\top}\|_2^2 \\ 
 & \text{subject to} & &\mathbf{U,V} \succeq 0,
 \end{aligned}
 \end{equation}
-where $\succeq$ indicates element-wise inequality. This constraint fits naturally to problems in which the input data is non-negative, as is the case with images.  
+where $\succeq$ indicates element-wise inequality. This constraint
+fits naturally to problems in which the input data is non-negative, as
+is the case with text mining where each document can be seen as
+composed of words~\cite{berry2007algorithms} or music analysis~\cite{fevotte2009nonnegative}.  If we further add a sparsity penalty on the
+coefficients matrix ${\bf V}$, then we get non-negative sparse coding~\cite{sparseNMF_hoyer}.
+
+
 
 
 \subsection{Independent Component Analysis (ICA)}
-ICA comes from a different tradition than SPCA and NMF, and its
-notation is different.  The $X$ matrix in SPCA is usually transposed
-\cite{hyvarinen1999fast}, and $U$ and $V\transpose$ are known as $s$
-and $A$ respectively.  (Because the $X$ is transposed, the ICA
-decomposition is normally written as $X = As$.).  ICA seeks to impose
-statistical ``independence'' on the \textit{sources}, not the coefficient vectors. Its constraints act on the $U$ matrix, not the $V$ matrix: 
+The motivation for ICA comes from the blind source separation problem
+where ``blind'' means we know nothing about the source of signals, and
+we have to recover all the true sources generating the data.
+
+ICA seeks to impose statistical ``independence'' on the \textit{sources}. It is related to
+sparse coding, in that if we replace the $\ell_1$ sparsity penalty in
+sparse coding with a non-gaussianity promoting penalty, we get
+ICA. The notation of ICA is also a bit different and in literature
+${\bf A}$ and ${\bf s}$ are used instead of {$\bf U$} and ${\bf V}$
+respectively. However, to be consistent, we will stick to our notation
+of {$\bf U$} and ${\bf V}$. 
 \begin{equation}
 \begin{aligned}
-&\underset{U,V}{\operatorname{arg\,min}} & & \| X - UV^{\top} \|_2^2 + \lambda p(U),
+&\underset{U,V}{\operatorname{arg\,min}} & & \| X - UV^{\top} \|_2^2 + \lambda p(V),
 \end{aligned}
 \label{eqn:ICA}
 \end{equation}
-where $p(U)$ penalizes the non-independence of the columns of U.
-Although there are many ways to optimize for statistical independence (or ``non-Gaussianity''), a common practical way of enforcing the independence is to use the log hyperbolic cosine penalty. The log hyperbolic cosine is a close approximation to the $\ell_1$ norm, Equation \ref{eqn:ICA} is closely approximated by 
+where $p(V)$ penalizes the non-independence of the columns of {\bf V}.
+Although there are many ways to optimize for statistical independence
+(or ``non-Gaussianity''), e.g. skewness, kurtosis; a common practical way of enforcing the independence is to use the log hyperbolic cosine penalty. The log hyperbolic cosine is a close approximation to the $\ell_1$ norm, Equation \ref{eqn:ICA} is closely approximated by 
 \begin{equation}
 \begin{aligned}
-&\underset{U,V}{\operatorname{arg\,min}} & & \| X - UV^{\top} \|_2^2 + \lambda \sum_i \|U_i\|_1.
+&\underset{U,V}{\operatorname{arg\,min}} & & \| X - UV^{\top} \|_2^2 + \lambda \sum_i \|V_i\|_1.
 \end{aligned}
 \end{equation}
-It is worth noting that though we have cast SPCA and ICA in the same objective but still there are differences between the two in addition to what is described above. 
+The optimization of the general ICA objective is also different from
+SPCA, sparse coding, NMF all of which can be optimized by gradient
+descent, arnoldi iteration or SVD. The most standard algorithm for ICA
+optimization is an approximate Newton method, called FastICA~\cite{hyvarinen_fast_1999}.
 
-Firstly, the connection between SPCA and ICA is tied to the assumption of using a log hyperbolic cosine penalty; if we were to use some other penalty then there might not be an obvious similarity between SPCA and ICA, which makes sense as SPCA considers only upto second order moments whereas ICA optimizes fourth order moments. 
+It is worth noting that though we have cast SPCA, sparse coding, NMF and ICA in the same objective but still there are differences between the two in addition to what is described above. 
+
+Firstly, the connection is tied to the assumption of using a log
+hyperbolic cosine penalty; if we were to use some other penalty then
+there might not be an obvious similarity between the methods, which
+makes sense as SPCA considers only upto second order moments
+(gaussianity assumption) whereas ICA optimizes fourth order moments. 
 
 Secondly, since SPCA tries to find directions capturing decreasing variance (second order moment); there is a natural ordering to the components of SPCA. However, the basis vectors found by standard ICA are not ranked in any order. So, above, we assume that the components of ICA are also ranked according to decreasing variance.
 
@@ -293,37 +348,49 @@ specific penalty terms. EANAT seeks to represent each component image with a set
 \label{eq:eanat}
 \underset{U,V}{\operatorname{arg\,min}} \; \| X - UV^{\top} \|_2^2 + \lambda_1    S(U) + \lambda_2 S(V),
 \end{equation}
-where $\lambda_1$ controls the contribution of the ICA sparsity
+where $\lambda_1$ controls the contribution of the SPCA sparsity
 component of the penalty and $\lambda_2$ controls the sparsity of the
-SPCA component of the penalty.  $S(\cdot)$, the sparsity penalty, is defined as follows,
+ICA (sparse coding) component of the penalty.  $S(\cdot)$, the sparsity penalty, is defined as follows,
 
 \begin{eqnarray}
+\label{sparse:thresh}
 S( {\bf V} ) =\sum_{i=1}^k \|G_{\sigma}\times v_i \|_1,\\ \notag
-\forall_{i \ne j} \langle {\bf v}_j ,  {\bf v}_i \rangle = 0~,~{\bf v}_i \succeq 0~,~\|S( {\bf v} )-\gamma\|_1 \leq \epsilon \\ \notag
+\forall_{i \ne j} \langle {\bf v}_j ,  {\bf v}_i \rangle = 0~,~{\bf
+v}_i \succeq 0~,~\|S( {\bf v} )\|_1 = \gamma \\ \notag
 \end{eqnarray}
-$\gamma$ is a user defined sparsity parameter which controls the
+Where, $\gamma$ is a user defined sparsity parameter which controls the
 number of non-zero entries in the solution. $G_{\sigma}$ is a kernel matrix which
 enforces smoothness and connectedness among the different EANAT
-components along the anatomical manifold. When then $G_{\sigma}$ operator is equal  to $I$ (identity matrix), it
+components along the anatomical manifold. When the $G_{\sigma}$ operator is equal  to $I$ (identity matrix), it
 reduces to a simple $\ell_1$ penalty.
 
 Its worth noting a few points about the EANAT objective:
 
 \begin{itemize}
 
- \item EANAT enforces orthogonality between the EANAT componenents.  
+ \item EANAT enforces orthogonality between the various components.
+ In other wrods, $\forall$ $1 \leq i, j \leq p$, $u_i \perp u_j$ and
+ $v_i \perp v_j$  but  unlike standard PCA, $u_i \ne v_i\cdot x$. 
   
 \item  Non-negativity of the components means that the projections of eigenanatomy into subject space are simply weighted averages of the input data (e.g. cortical thickness values) for each subject.   Although this constraint can be relaxed, non-negativity improves our ability to interpret data by preventing weights from being both positive and negative within the same eigenanatomy component. As such, one may compute effect sizes and interpret statistics directly, for example, ``reductions in posterior cingulate cortical thickness reduce performance on memory-related psychometrics.''  
 
 \item Sparsity is enforced by an $\ell_1$ penalty as in common in machine
 learning\cite{sparseNMF_hoyer,sparseNMF_kim,sparseNMF_heiler,sparsePCA_zou,sparsePCA_jordan,sparsePCA_journee,Gandy2010,Chennubhotla2001,Lee2011}.
 In practice, we enforce sparsity and smoothness of the EANAT components by a non-linear conjugate gradient
-projection method (described in next section).   
-The algorithm thresholds $w_i$ by $\gamma$, clusters $v_i$ and then
-smooths $v_i$ then computes sparsity constraint
-i.e. $\|v_i\|_0=\gamma$.  The optimal $\gamma^\star$ is identified by
-performing a binary search until $\gamma=\gamma^\star$.  Finally, the
-constraints are again  applied starting with the $\ell_1$ threshold $\gamma^\star$.  
+projection method (described in next section).  
+
+
+For instance, for enforcing sparsity on $\bf V$, we start with values
+of $\bf V$ which keep all or none of the features, and evaluate the
+objective~\ref{sparse:thresh}. Based on whether $S({\bf V})$ is higher or
+lower than $\gamma$, we perform a binary search to find a set of
+features which satisfy the sparsity constraint.
+
+%The algorithm thresholds $w_i$ by $\gamma$, clusters $v_i$ and then
+%smooths $v_i$ then computes sparsity constraint
+%i.e. $\|v_i\|_0=\gamma$.  The optimal $\gamma^\star$ is identified by
+%performing a binary search until $\gamma=\gamma^\star$.  Finally, the
+%constraints are again  applied starting with the $\ell_1$ threshold $\gamma^\star$.  
 
 \end{itemize}
 
@@ -353,17 +420,21 @@ is given by the SVD solution-- ${\tilde{u}=u_1}$ and ${\tilde{v}}=d_1{v_1}$, whe
 Proceeding this way, $d_2{u}_2{v}_2^{\top}$ provide the best rank-1 approximation of the ``deflated'' matrix ${{\bf X}- d_1{u}_1{v}_1^{\top}}$ and so on. 
 
 
-As pointed by~\citep{shen},  with ${\tilde{v}}$ fixed, the above optimization over  ${\tilde{u}}$ is equivalent to a least squares regression of {\bf X} on  ${\tilde{v}}$. Once we have ${\tilde{u}}$, we solve for ${\tilde{v}}$ by performing power iteration followed by sparse ``soft thresholded'' projection with the following objective
+As pointed by~\citep{shen},  with ${\tilde{v}}$ fixed, the above optimization over  ${\tilde{u}}$ is equivalent to a least squares regression of {\bf X} on  ${\tilde{v}}$. Once we have ${\tilde{u}}$, we solve for ${\tilde{v}}$ by performing rayleigh iteration followed by sparse ``soft thresholded'' projection with the following objective
 
 \begin{equation}
 \label{spca1}
-{v_i^*}= \argmax_{{v_i},{\|v_i\|}=1,  v_i^{\top}v_j=0, i\neq j} {v_i}^{\top}\left(X_{\backslash i}^{\top}X_{\backslash i} \right){v_i} +  \lambda_i\|{v_i}\|_1 
+{v_i^*}= \argmax_{{v_i},{\|v_i\|}=1,  v_i^{\top}v_j=0, i\neq j}
+\frac{v_i^{\top} {\bf X}_{\backslash i}^{\top}{\bf X}_{\backslash i}v_i}{v_i ^{\top}v_i } +  \lambda_i\|{v_i}\|_1 
 \end{equation}
-where ${\bf X}_{\backslash i}  \triangleq {\bf X}- \sum_{j=1, j\neq i}^{k}{\tilde{u}_j\tilde{v}_j^{\top}}$ is the ``deflated'' {\bf X} matrix.
+where ${\bf X}_{\backslash i}  \triangleq {\bf X}- \sum_{j=1, j\neq
+i}^{k}{\tilde{u}_j\tilde{v}_j^{\top}}$ is the ``deflated'' {\bf X}
+matrix. The above optimization can be solved iteratively via gradient
+descent.
 
 
 
-Our proposed algorithm for eanat iterates between Equations~\ref{spca} and \ref{spca1} i.e. with ${\tilde{v}}$ fixed, performing least squares regression to find  ${\tilde{u}}$ and then holding  ${\tilde{u}}$ fixed and solving to get the sparse eigenvectors ${\tilde{v}}$ via conjugate gradient. 
+Our proposed algorithm for EANAT iterates between Equations~\ref{spca} and \ref{spca1} i.e. with ${\tilde{v}}$ fixed, performing least squares regression to find  ${\tilde{u}}$ and then holding  ${\tilde{u}}$ fixed and solving to get the sparse eigenvectors ${\tilde{v}}$ via conjugate gradient. 
 
 
 The sparseness, smoothness and non-negativity are enforced as discussed in the previous section.
@@ -408,7 +479,8 @@ ${\bf U} \gets$ {\texttt {ReconOpt}}(${\bf X}, {\bf V}$)\;
 
 \While {${\Delta c} \leq \epsilon$ }{
 
-$ g^{k} \gets ({\bf X^{\top}X}){c}^{k}$  \Comment{Gradient.}\;
+$ g^{k} \gets ({\bf X^{\top}X}){c}^{k}$  \Comment{Gradient of Rayleigh
+quotient.}\;
 $\gamma \gets  \frac{g^{k}\cdot g^{k}}{g^{k-1} \cdot g^{k-1}}$ \Comment{Conjugate Gradient.} \;
 $ d^{k} \gets g^{k}  + \gamma\cdot d^{k-1}$ \;
 ${ c}^{k+1} \gets  {c}^k + d^{k}$  \;
