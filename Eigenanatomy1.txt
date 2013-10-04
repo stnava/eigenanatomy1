@@ -215,12 +215,12 @@ the number of observations (subjects) and  $p$ is the number of total
 voxels. For instance, ${\bf X}$ can be the cortical thickess
 measurements or the fMRI time series for all the $n$ subjects.
 We seek a sparse decomposition of the ${\bf X}$ matrix  into two matrices
-$U$ and $V$, (such that $X \approx UV^{\top}$). The ${\bf U}$ matrix,
+${\bf U}$ and ${\bf V}$, (such that ${\bf X \approx UV^{\top}}$). The ${\bf V}$ matrix,
 which is of size $p\times k$ is typically called the 
 {\it factor loading matrix} and each of its columns is a basis vector
 for approximating the {\bf X} matrix or sometimes it is also called a {\it
 dictionary}, in the sparse coding literature where each of its columns
-is an {\it atom}. The ${\bf V}$ matrix of size $n \times k$ is called the
+is an {\it atom}. The ${\bf U}$ matrix of size $n \times k$ is called the
 {\it coefficient matrix} or the {\it latent vectors}. 
 
  \begin{equation}
@@ -236,7 +236,7 @@ requirements of a specific domain.
 \begin{enumerate}
 \item Sparsity: Should the ${\bf U}$ and/or ${\bf V}$ matrices be sparse? 
 \item Orthogonality: Should each of ${\bf U}$ and ${\bf V}$ matrices have
-orthogonal columns i.e. $\forall 1\leq i < k\;\; u_i \perp u_j $ and $ v_i
+orthogonal columns i.e. $\forall\;\;l 1\leq i < k\;\; u_i \perp u_j $ and $ v_i
 \perp v_j $ ? In addition to this, should the columns of {\bf $U$} be
 orthogonal to the columns of {\bf $V$}. 
 \item Positivity: Should the entries of ${\bf U}$ and/or ${\bf V}$
@@ -247,7 +247,7 @@ Broadly, this gives rise to four different algorithms
 
 \subsection{Principal Component Analysis (PCA)}
 In standard PCA, ${\bf U}$, and ${\bf V}$ are orthogonal and are
-related by ${\bf V} = {\bf U^{\top}X}$. The matrix ${\bf U}$ is 
+related by ${\bf U} = {\bf XV}$. The matrix ${\bf V}$ is 
 estimated by performing singular value decomposition (SVD) on the
 correlation matrix ${\bf X^{\top}X}$ and contains the `k' 
 eigenvectors with the largest eigenvalues as its columns.
@@ -261,27 +261,28 @@ a domain like brain imaging.
 \subsection{Sparse Principal Component Analysis (SPCA) }
 Sparse PCA (SPCA) augments the objective function presented in
 Equation~\ref{sparse:matrix}  by putting an $\ell_1$ sparsity
-constraint on the columns of $U$. Its worth noting that unlike
+constraint on the columns of ${\bf V}$. Its worth noting that unlike
 standard PCA, SPCA does not normally include an explicit orthogonality
 constraint. The reconstruction error term makes the orthogonality less
 important \cite{le_ica_2011}. If we were to enforce sparsity on the
-coefficients matrix {$\bf V$} instead of the loadings matrix {$\bf
-U$}, then we get the {\it sparse coding}~\cite{Lee2006,Mairal2010} or
+coefficients matrix {$\bf U$} instead of the loadings matrix {$\bf
+V$}, then we get the {\it sparse coding}~\cite{Lee2006,Mairal2010} or
 {\it sparse dictionary
 learning}~\cite{varoquaux2011multi,abraham2013extracting} objective. 
 \begin{equation}
 \begin{aligned}
-&\underset{U,V}{\operatorname{arg\,min}} \| X - UV^{\top} \|_2^2 + \lambda \sum_i \|U_i\|_1
+&\underset{U,V}{\operatorname{arg\,min}} \| {\bf X - UV^{\top}} \|_2^2
++ \lambda \sum_i \|{\bf V}_i\|_1
 \end{aligned}
 \end{equation}
 
 
 \subsection{Non-negative Matrix Factorization}
-NMF requires both $U$ and $V$ to be non-negative. There are no
+NMF requires both ${\bf U}$ and ${\bf V}$ to be non-negative. There are no
 orthogonality constraints as earlier.  
 \begin{equation}
 \begin{aligned}
-&\underset{U, V}{\text{minimize}} &&\| \mathbf{X} - UV^{\top}\|_2^2 \\ 
+&\underset{U, V}{\text{minimize}} &&\| \mathbf{X} - {\bf UV}^{\top}\|_2^2 \\ 
 & \text{subject to} & &\mathbf{U,V} \succeq 0,
 \end{aligned}
 \end{equation}
@@ -289,7 +290,7 @@ where $\succeq$ indicates element-wise inequality. This constraint
 fits naturally to problems in which the input data is non-negative, as
 is the case with text mining where each document can be seen as
 composed of words~\cite{berry2007algorithms} or music analysis~\cite{fevotte2009nonnegative}.  If we further add a sparsity penalty on the
-coefficients matrix ${\bf V}$, then we get non-negative sparse coding~\cite{sparseNMF_hoyer}.
+coefficients matrix ${\bf U}$, then we get non-negative sparse coding~\cite{sparseNMF_hoyer}.
 
 
 
@@ -308,16 +309,18 @@ respectively. However, to be consistent, we will stick to our notation
 of {$\bf U$} and ${\bf V}$. 
 \begin{equation}
 \begin{aligned}
-&\underset{U,V}{\operatorname{arg\,min}} & & \| X - UV^{\top} \|_2^2 + \lambda p(V),
+&\underset{U,V}{\operatorname{arg\,min}} & & \| {\bf X} - {\bf
+UV}^{\top} \|_2^2 + \lambda p({\bf U}),
 \end{aligned}
 \label{eqn:ICA}
 \end{equation}
-where $p(V)$ penalizes the non-independence of the columns of {\bf V}.
+where $p({\bf U})$ penalizes the non-independence of the columns of {\bf U}.
 Although there are many ways to optimize for statistical independence
 (or ``non-Gaussianity''), e.g. skewness, kurtosis; a common practical way of enforcing the independence is to use the log hyperbolic cosine penalty. The log hyperbolic cosine is a close approximation to the $\ell_1$ norm, Equation \ref{eqn:ICA} is closely approximated by 
 \begin{equation}
 \begin{aligned}
-&\underset{U,V}{\operatorname{arg\,min}} & & \| X - UV^{\top} \|_2^2 + \lambda \sum_i \|V_i\|_1.
+&\underset{U,V}{\operatorname{arg\,min}} & & \|{\bf  X - UV}^{\top}
+\|_2^2 + \lambda \sum_i \|{\bf U}_i\|_1.
 \end{aligned}
 \end{equation}
 The optimization of the general ICA objective is also different from
@@ -346,11 +349,12 @@ specific penalty terms. EANAT seeks to represent each component image with a set
 
 \begin{equation}
 \label{eq:eanat}
-\underset{U,V}{\operatorname{arg\,min}} \; \| X - UV^{\top} \|_2^2 + \lambda_1    S(U) + \lambda_2 S(V),
+\underset{U,V}{\operatorname{arg\,min}} \; \| {\bf X} - {\bf
+UV}^{\top} \|_2^2 + \lambda_1    S({\bf U}) + \lambda_2 S({\bf V}),
 \end{equation}
-where $\lambda_1$ controls the contribution of the SPCA sparsity
+where $\lambda_1$ controls the contribution of the ICA (sparse coding) sparsity
 component of the penalty and $\lambda_2$ controls the sparsity of the
-ICA (sparse coding) component of the penalty.  $S(\cdot)$, the sparsity penalty, is defined as follows,
+SPCA component of the penalty.  $S(\cdot)$, the sparsity penalty, is defined as follows,
 
 \begin{eqnarray}
 \label{sparse:thresh}
