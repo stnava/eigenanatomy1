@@ -344,7 +344,7 @@ Secondly, since SPCA tries to find directions capturing decreasing variance (sec
 
 EANAT objective uses a hybrid decomposition schemes which borrow ideas
 from SPCA and ICA and further augments it with neuroanatomically
-specific penalty terms. EANAT seeks to represent each component image with a set of neuroanatomical coordinates that are {\em connected}, {\em smooth} and are defined by {\em non-negative} weights.  Alhough this latter constraint can be relaxed, non-negativity improves our ability to interpret data by preventing weights from being both positive and negative within the same eigenanatomy component.  Also, non-negativity means that the projections of eigenanatomy into subject space are simply weighted averages of the input data (e.g. cortical thickness values) for each subject.   
+specific penalty terms. EANAT seeks to represent each component image with a set of neuroanatomical coordinates that are {\em connected}, {\em smooth} and are defined by {\em non-negative} weights.  Although this latter constraint can be relaxed, non-negativity improves our ability to interpret data by preventing weights from being both positive and negative within the same eigenanatomy component.  Also, non-negativity means that the projections of eigenanatomy into subject space are simple weighted averages of the input data (e.g. cortical thickness values) for each subject.   
 
 
 \begin{equation}
@@ -358,25 +358,28 @@ SPCA component of the penalty.  $S(\cdot)$, the sparsity penalty, is defined as 
 
 \begin{eqnarray}
 \label{sparse:thresh}
-S( {\bf V} ) =\sum_{i=1}^k \|G_{\sigma}\times v_i \|_1,\\ \notag
+S( {\bf V} ) =\sum_{i=1}^k \|G\times v_i \|_1,\\ \notag
 \forall_{i \ne j} \langle {\bf v}_j ,  {\bf v}_i \rangle = 0~,~{\bf
 v}_i \succeq 0~,~\|S( {\bf v} )\|_1 = \gamma \\ \notag
 \end{eqnarray}
 Where, $\gamma$ is a user defined sparsity parameter which controls the
-number of non-zero entries in the solution. $G_{\sigma}$ is a kernel matrix which
+number of non-zero entries in the solution. $G$ is a kernel matrix which
 enforces smoothness and connectedness among the different EANAT
-components along the anatomical manifold. When the $G_{\sigma}$ operator is equal  to $I$ (identity matrix), it
+components along the anatomical manifold and is similar in spirit to the wavelet or discrete cosine basis transform~\cite{becker2011nesta}. When the $G$ operator is equal  to $I$ (identity matrix), it
 reduces to a simple $\ell_1$ penalty.
 
-Its worth noting a few points about the EANAT objective:
+
+Its worth noting a further few points about the objective:
 
 \begin{itemize}
 
- \item EANAT enforces orthogonality between the various components.
- In other wrods, $\forall$ $1 \leq i, j \leq p$, $u_i \perp u_j$ and
+ \item We enforce orthogonality between the various components.
+ In other words, $\forall$ $1 \leq i, j \leq p$, $u_i \perp u_j$ and
  $v_i \perp v_j$  but  unlike standard PCA, $u_i \ne v_i\cdot x$. 
   
 \item  Non-negativity of the components means that the projections of eigenanatomy into subject space are simply weighted averages of the input data (e.g. cortical thickness values) for each subject.   Although this constraint can be relaxed, non-negativity improves our ability to interpret data by preventing weights from being both positive and negative within the same eigenanatomy component. As such, one may compute effect sizes and interpret statistics directly, for example, ``reductions in posterior cingulate cortical thickness reduce performance on memory-related psychometrics.''  
+
+\iffalse
 
 \item Sparsity is enforced by an $\ell_1$ penalty as in common in machine
 learning\cite{sparseNMF_hoyer,sparseNMF_kim,sparseNMF_heiler,sparsePCA_zou,sparsePCA_jordan,sparsePCA_journee,Gandy2010,Chennubhotla2001,Lee2011}.
@@ -396,6 +399,8 @@ features which satisfy the sparsity constraint.
 %performing a binary search until $\gamma=\gamma^\star$.  Finally, the
 %constraints are again  applied starting with the $\ell_1$ threshold $\gamma^\star$.  
 
+\fi
+
 \end{itemize}
 
 To the best of our knowledge, directly exploring the interaction
@@ -405,11 +410,24 @@ anatomically reasonable results as we show in the experiments section.
 
 
 
-\subsection{EANAT Implementation} 
 
-%\noindent{\bf Eigenanatomy optimization algorithm.}  We will implement our own Arnoldi iteration (similar to \cite{Gandy2010,sparsePCA_journee}) and the gradient-based methods %proposed in \cite{Cai2010} and also in \cite{Lee1999}.  We will develop the general framework and matrix representation above starting with the classic Arnoldi iteration method.  Thi%s technique is appropriate for large-scale problems and fits within the standard alternating minimization approach used by NMF and SPCA methods \cite{Gandy2010}.  
+\subsection{Optimization}
+There are a variety of ways that one could optimize the above objective. \cite{Mairal2010} formulate a convex alternative for the above objective which uses an elastic net type penalty on {\bf V}. However, we propose an alternating optimization approach, also called an analysis-synthesis loop~\cite{murphy}. As a broader template, we optimize {\bf U} keeping {\bf V} fixed. Next, we deflate the {\bf X} matrix using the optimized {\bf U}s, and then optimize {\bf V} with {\bf U} fixed. This alternating procedure is repeated till convergence. Each of our sparse optimization for {\bf U} and {\bf V} is performed via iterative soft-thresholding on the conjugate gradient of the Rayleigh Quotient. 
 
-One could optimize the EANAT objective in Equation~\ref{eq:eanat} using an iterative approach like aronoldi iteration. However, since the EANAT objective is non-convex we risk the chance of getting stuck in a bad local optima. Specifically, with that in mind, we propose a novel optimization algorithm for the eanat objective; particularly, we ``deflate'' our data matrix {\bf X} (factoring out the effect of other eigenvectors) between computations of different eigenvectors, which leads to better solutions~\citep{mackey08}. The deflation based optimization entails performing an additional ordinary least squares regression (OLS) step and can be motivated as follows.
+
+Iterative soft-thresholding (soft$(a,\delta)\triangleq$ sign(a)$(\|a\|-\delta)_+$ with  $x_+=$max(x,0)) falls in the class of proximal gradient methods and has been shown to have better convergence~\cite{bredies2008linear} and scalability properties compared to other sparse optimization algorithms e.g. Least Angle Regression (LARS)~\cite{yang2010}. Furthermore, deflation has been shown to give better sparse PCA solutions~\cite{mackey08}; so adding a deflation step between the alternating optimizations helps us get better solutions.
+
+
+
+
+\subsection{Implementation Details} 
+
+\iffalse
+\noindent{\bf Eigenanatomy optimization algorithm.}  We will implement our own Arnoldi iteration (similar to \cite{Gandy2010,sparsePCA_journee}) and the gradient-based methods %proposed in \cite{Cai2010} and also in \cite{Lee1999}.  We will develop the general framework and matrix representation above starting with the classic Arnoldi iteration method.  This technique is appropriate for large-scale problems and fits within the standard alternating minimization approach used by NMF and SPCA methods \cite{Gandy2010}.  
+
+
+One could optimize the EANAT objective in Equation~\ref{eq:eanat} using an iterative approach like Arnoldi iteration. However, since the EANAT objective is non-convex we risk the chance of getting stuck in a bad local optima. Specifically, with that in mind, we propose a novel optimization algorithm for the eanat objective; particularly, we ``deflate'' our data matrix {\bf X} (factoring out the effect of other eigenvectors) between computations of different eigenvectors, which leads to better solutions~\citep{mackey08}. The deflation based optimization entails performing an additional ordinary least squares regression (OLS) step and can be motivated as follows.
+\fi
 
 
 We know that the best rank `k' reconstruction of a matrix  i.e. $\argmin_{\hat{\bf X}} \|\bf X~-~\hat{X} \|_F^2$, is provided by its first `k' eigenvectors~\citep{eckart} i.e. $\hat{\bf X}=\sum_{i=1}^k d_k{u}_k{v}_k^{\top}$.
@@ -424,39 +442,46 @@ is given by the SVD solution-- ${\tilde{u}=u_1}$ and ${\tilde{v}}=d_1{v_1}$, whe
 Proceeding this way, $d_2{u}_2{v}_2^{\top}$ provide the best rank-1 approximation of the ``deflated'' matrix ${{\bf X}- d_1{u}_1{v}_1^{\top}}$ and so on. 
 
 
-As pointed by~\citep{shen},  with ${\tilde{v}}$ fixed, the above optimization over  ${\tilde{u}}$ is equivalent to a least squares regression of {\bf X} on  ${\tilde{v}}$. Once we have ${\tilde{u}}$, we solve for ${\tilde{v}}$ by performing rayleigh iteration followed by sparse ``soft thresholded'' projection with the following objective
+As pointed by~\citep{shen},  with ${\tilde{v}}$ fixed, the above optimization over  ${\tilde{u}}$ is equivalent to a least squares regression of {\bf X} on  ${\tilde{v}}$. However, in our case, we have sparsity on ${\tilde{u}}$ also, so it becomes a sparse optimization problem (Equation~\ref{spca1}).
+
+Similarly,  with ${\tilde{u}}$ fixed, the optimization over ${\tilde{v}}$ is also a sparse optimization problem  (Equation~\ref{spca2}). As mentioned in the last section, we solve both these by iterative soft thresholding on the conjugate gradient of Rayleigh Quotient.
+
+As described earlier, our implementation alternates between optimization of Equations~\ref{spca1}, ~\ref{spca2} (shown below for iteration number `m') till convergence . 
 
 \begin{equation}
 \label{spca1}
-{v_i^*}= \argmax_{{v_i},{\|v_i\|}=1,  v_i^{\top}v_j=0, i\neq j}
-\frac{v_i^{\top} {\bf X}_{\backslash i}^{\top}{\bf X}_{\backslash i}v_i}{v_i ^{\top}v_i } +  \lambda_i\|{v_i}\|_1 
+{\bf U^*}_{m}= \argmin_{{U},{\|U\|}=1,  u_i^{\top}u_j=0, i\neq j}
+({\bf X} -{\bf U}{\bf V}^{\top}_{m-1}) +  \lambda_1\|{G{\bf U}}\|_1 
+\end{equation}
+
+
+\begin{equation}
+\label{spca2}
+\{v_i^*\}_{m}= \argmin_{{v_i},{\|v_i\|}=1,  v_i^{\top}v_j=0, i\neq j}
+({\bf X}_{\backslash i} -{\bf U}_{m}v_i^{\top}) +  \lambda\|{Gv_i}\|_1 
 \end{equation}
 where ${\bf X}_{\backslash i}  \triangleq {\bf X}- \sum_{j=1, j\neq
-i}^{k}{\tilde{u}_j\tilde{v}_j^{\top}}$ is the ``deflated'' {\bf X}
-matrix. The above optimization can be solved iteratively via gradient
-descent.
+i}^{k}{\tilde{u}_j\tilde{v}_j^{\top}}$ is the ``deflated'' {\bf X} matrix. 
 
 
-
-Our proposed algorithm for EANAT iterates between Equations~\ref{spca} and \ref{spca1} i.e. with ${\tilde{v}}$ fixed, performing least squares regression to find  ${\tilde{u}}$ and then holding  ${\tilde{u}}$ fixed and solving to get the sparse eigenvectors ${\tilde{v}}$ via conjugate gradient. 
 
 
 The sparseness, smoothness and non-negativity are enforced as discussed in the previous section.
 
- The details of our algorithm can be found in Algorithms~\ref{algo1},~\ref{algo2}. Note that the OLS regression step is just required to compute $\tilde{u}$ which is required for deflation of the data matrix.
+ The details of our algorithm can be found in Algorithms~\ref{algo1},~\ref{algo2}.
 
 \begin{algorithm}[htbp]
-\small \caption{\bf  Eigenanatomy: eanat (Main Algorithm)}
+\small \caption{\bf  Eigenanatomy: EANAT (Main Algorithm)}
 \label{algo1}
 \KwIn { {\bf X}, $\lambda$ }
 Standardize the data matrix {\bf X}: Mean center it and scale to unit variance\;
 Initialize the eigenvectors randomly ${\bf V \gets \mathcal{N}(0,1)}$\;
-${\bf U} \gets$ {\texttt {ReconOpt}}(${\bf X}, {\bf V}$)\;
+${\bf U} \gets$ {\texttt {SCGP}}(${\bf X}, {\bf V}, \lambda_1, 1:k$)\;
 \While {${\Delta {\bf \|V\|}} \leq \epsilon$ }{	
 \For{i=1 to k}{
 	${\bf X_{\backslash i}}  \gets {\bf X}- \sum_{j=1, i\neq j}^{k}{u_jv_j^{\top}}$\Comment{Deflate {\bf X}}\;
-	${v_i} \gets$ {{\texttt {SP}}}(${\bf X}_{\backslash i}, {\bf V},  \lambda,i$)\;
-	${\bf U} \gets$ {\texttt {ReconOpt}}(${\bf X}, {\bf V}$) \Comment{Where {\bf V} is the matrix with only its $i^{th}$ column updated. Other columns are the same as previous iteration}\;
+	${v_i} \gets$ {{\texttt {SCGP}}}(${\bf X}_{\backslash i}, {\bf V},  \lambda, i$)\;
+	${\bf U} \gets$ {\texttt {SCGP}}(${\bf X}, {\bf V}, \lambda_1, 1:k$) \Comment{Where {\bf V} is the matrix with only its $i^{th}$ column updated. Other columns are the same as previous iteration}\;
 	}
 	}
 \KwOut {${\bf V}$}
@@ -464,14 +489,16 @@ ${\bf U} \gets$ {\texttt {ReconOpt}}(${\bf X}, {\bf V}$)\;
 \begin{algorithm}[htbp]
 \label{algo2}
 \DontPrintSemicolon
+
+\iffalse
 \SetKwFunction{KwFun}{ReconOpt} \;
 \KwFun{${\bf X}$, ${\bf V}$}\Comment{Optimize Reconstruction error for finding $u_i$}\;
 {
 \hspace{0.5cm}	${\bf U}   \gets ({\bf XX^{\top}})^{-1}{\bf XV}$ \Comment{Performs Ordinary Least Squares Regression.}\;
 \hspace{0.5cm} return {\bf U}
 }
-
 \vspace{1cm}
+\fi
 
 \SetKwFunction{KwFun}{SCGP}\;
 \KwFun{${\bf X}$, ${\bf V}$, $\lambda$,i } \Comment{Sparse Conjugate Gradient Projection for finding $v_i$}\;
