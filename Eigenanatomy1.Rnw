@@ -1,1 +1,968 @@
-Eigenanatomy1.txt
+\documentclass{elsarticle}
+\usepackage{amsfonts,xcolor}
+\usepackage{amssymb}
+\usepackage{amsmath}
+\newcommand{\X}{\mathrm{X}}
+\newcommand{\Xh}{\hat{\mathrm{X}}}
+\newcommand{\transpose}{^\mathrm{T}}
+\usepackage{geometry}
+\usepackage{url}
+\usepackage[boxed]{algorithm2e}
+\usepackage{booktabs}
+\usepackage{algorithmicx,algpseudocode}
+\newcommand{\argmax}{\operatornamewithlimits{argmax}}
+\newcommand{\argmin}{\operatornamewithlimits{argmin}}
+
+\begin{document}
+<<setup, include=FALSE, cache=FALSE,eval=TRUE>>=
+require(knitr)
+booleval <- TRUE
+options(xtable.comment = FALSE)
+options(replace.assign=TRUE,width=90)
+options( digits = 4 )
+opts_chunk$set(eval=booleval, echo = FALSE, warning=FALSE, message=FALSE, digits=4)
+# knit_hooks$set(rgl = hook_rgl)
+# head(hook_rgl)  # the hook function is defined as this
+library(ANTsR)
+library(boot)
+library(xtable)
+library(grid)
+library(png)
+library(abind)
+library(grDevices)
+library(infotheo)
+library(xtable)
+library(fastICA)
+@
+
+<<definevars, include=FALSE, cache=FALSE,eval=TRUE>>=
+qv<-1;mysig<-1
+@
+
+
+\title{Eigenanatomy: Sparse Component Analysis for Medical Imaging}
+%\author{Brian B. Avants}
+\begin{abstract}
+Eigenanatomy is a general formulation for sparse component analysis of
+medical imaging data.  Eigenanatomy (EANAT) may be used to reduce the
+dimensionality of large datasets to a manageable size, extract
+covarying patterns from structural or functional imaging or to
+identify ``network" predictors that may be used in standard population
+analyses.  The EANAT framework implements a variety of possible sparse
+decompositions where we may force components to be smooth along an
+anatomical manifold.  Here, we summarize this new framework from a
+theoretical and practical perspective.  Early results in a cortical
+thickness study of Mild Cognitive Impairment (MCI) highlight
+advantages with respect to voxel-wise methods.  We also contrast EANAT
+results with other sparse decomposition methods.  The study software and data are
+publicly available in a free framework, ANTsR, based on ANTs (image
+registration, segmentation, bias correction) and R
+(the statistical programming platform).
+\end{abstract}
+\maketitle
+\section{Introduction}
+High dimensional datasets are frequently collected in medicine and
+biology.  Magnetic resonance imaging (MRI), gene expression and
+genotype all contain thousands to millions of measurements per
+individual.  The individual discrete measurements comprising these
+modalities are related to each other through the lens of both the
+quantitative technology and the underlying biology.  Therefore, the
+resulting datasets often exhibit strong covariation and suffer from
+the curse of dimensionality.  When this type of data is addressed with
+univariate statistics, studies may be underpowered or fail to capture
+the intrinsically multivariate nature of the underlying biological
+signal.
+
+Data-driven dimensionality reduction and feature selection techniques
+provide a potentially optimal strategy for analyzing ``big data" in
+biological domains \cite{}.  Dimensionality reduction methods find
+(weighted) combinations of the univariate measurements such that the
+original data is well-described by a relatively small set of summary
+measurements.  Given the presence of collinearity, dimensionality
+reduction methods may improve statistical power by collecting related
+measurements together.  This also facilitates data inspection which is
+challenging when using univariate approaches to data with several
+thousand or more variables.
+
+
+
+
+There are three commonly used methods for data driven dimensionality
+reduction: 
+\begin{itemize}
+\item Principal Component Analysis (PCA)~\cite{jolliffe2005principal}: It is one of the most widely used
+dimensionality reduction algorithms.  PCA, however, has the disadvantage that
+the low-dimensional components consist of contributions from every
+component of the high-dimensional space, which makes interpretation of
+the low-dimensional space difficult.  Many techniques have been
+proposed to deal with this issue.  One common method is Sparse PCA (SPCA)
+\cite{jolliffe_simplified_2000,shen2008sparse,guan2009sparse}.  Sparse
+PCA incorporates penalties on the matrix decomposition to encourage
+each component to consist of contributions from only a few components
+from the higher dimensional space. Another related technique is sparse
+coding~\cite{Lee2006,Mairal2010} (or dictionary learning)~\cite{varoquaux2011multi,abraham2013extracting},  which is motivated more from a
+neurological perspective and way the human cortex processes information~\cite{Olshausen2004}.
+\item Non-negative Matrix Factorization
+(NMF)~\cite{paatero1994positive}: It constrains the components to be
+positive i.e. each learned component of the dictionary is a positive
+sum of positive ``parts'' rather than a sparse sum of positive or
+negative parts. The main motivation behind NMF is to come up
+with ``parts-based representations'' which transforms unstructured
+data into more interpretable pieces\cite{Lee1999,sparseNMF_hoyer,lee_learning_1999,berry2007algorithms}. Alternatively, one
+could drop the positivity constraint and impose the sparsity
+constraint. Another variant involves imposing
+sparsity in addition to positivity which is called non-negative sparse coding~\cite{sparseNMF_hoyer}.
+\item Independent Component Analysis
+(ICA)~\cite{hyvarinen2000independent}: It is motivated by
+the ``blind source separation'' problem: Given a data matrix that
+contains information from a variety of sources, how can we uncover the
+original sources?  It optimizes statistical independence among the
+basis vectors.  Note that PCA, owing to its gaussianity assumption identifies the true sources only upto a rotation, so we need a
+non-gaussianity assumption (prior/regularization) on the sources to
+recover the true sources.
+Because of the different motivation of ICA, and slightly different
+notation it makes comparisons between the various methods difficult.
+\end{itemize}
+
+All these methods fall into the more general class of sparse matrix
+factorization framework-- each making a different set of assumptions.
+They can be viewed through a common lens as we show in next section.
+
+ These methods have been used to obtain state-of-the-art
+accuracies in a variety of problems in Machine Learning. However, their usage
+in medical imaging, though increasing, is limited by the fact that
+they are used as out-of-the-box techniques and are seldom tailored to
+the domain specific constraints/knowledge pertaining to medical
+imaging.  For instance, uninformed, generic matrix decomposition methods, e.g. standard principal component analysis (PCA) or ICA, may be difficult to interpret because the solutions will produce vectors that are everywhere non-zero, i.e. involve the whole brain rather than its parts.  
+
+This limits their popularity especially among clinicians who
+are often as interested in clinical interpretability as predictive
+accuracy. Sparse methods have sought to resolve this issue \cite{sparseNMF_hoyer,Witten2010,Friedman2010,Cherkassky2009,Friedman2008}.  However, these recent sparse multivariate methods are anatomically uninformed {and which may lead to unstable results} \cite{Xu2011}.
+ In this paper, we propose to bridge this gap by providing
+matrix decomposition techniques regularized by neuroanatomically inspired smoothness
+and connectedness terms.   
+
+Eigenanatomy (EANAT) is a general framework for sparse matrix factorization that is closely related to SPCA,
+NMF, and a version of ICA~\footnote{Log hyperbolic cosine sparsity
+penalty.}.  The goal of EANAT is to statistically learn the boundaries
+of and connections between brain regions by weighing both data and
+prior neuroanatomical guidance. Recent work points to the fact that exploiting problem-specific information can improve parts-based representations \cite{Guan2011,Cai2010,Hosoda2009}. EANAT component images, on the other hand, {enable prior knowledge to enhance solution stability} and are tied to a set of neuroanatomical coordinates that are {\em connected}, {\em smooth} and may also be defined by {\em non-negative} weights. 
+
+
+The specific constraints implemented
+within each of these methods alter the patterns that are extracted.
+Each algorithm has a different history, employs different theoretical
+arguments and is favored in a different community.  The optimization
+methods are also heterogeneous, making it challenging to know, when
+comparing different implementations of the algorithms, whether the
+theoretical or practical differences are the root of performance
+variation. To address this concern, we implement EANAT
+decompositions with respect to a consistent data-term and then enforce
+smoothness and sparsity constraints inspired by SPCA, ICA and NMF.  This allows us to compare positively
+constrained decompositions (as with NMF) to ICA and SPCA-like
+decompositions.
+
+
+
+Our main contributions in this paper are:
+
+\begin{enumerate}
+\item From a theoretical  standpoint, we provide a unified objective
+function for sparse matrix factorization inspired by SPCA, NMF and ICA which allows us to incorporate different aspects of each kind of
+decomposition into a single framework. 
+\item From a practical standpoint, provide uniform optimization algorithms, that allow for
+easy comparison of the decompositions without the confounds of
+different implementation strategies.
+\item Customization of EANAT for neuroimaging by using domain specific
+sparsity and smoothness constraints which aid interpretability of
+results and give superior predictive performance.
+\item A thorough evaluation involving comparison with standard
+approaches; and finally the public availability of our toolkit.
+\end{enumerate}
+
+
+The remaining paper is organized as follows; we first describe the various dimensionality reduction methods and provide a unified objective for them.
+Then we describe our EANAT theoretical framework and detail how the
+framework may be extended to implement neuro or medical imaging
+specific decompositions.  Finally, we outline our optimization
+algorithm and provide experimental evaluation.
+
+\section{Eigenanatomy (EANAT)}
+The class of methods encompassing NMF, ICA, SPCA and singular value
+decomposition \cite{Sill2011,Lee2010b,Yeung2002} form the basis for
+the approach proposed here. So, firstly, we describe SPCA, ICA and NMF
+through a common lens and provide a unified objective for them.  Finally, we show
+how one can define hybrid matrix decomposition methods by combining different approaches.
+
+
+%\subsection{Motivation}
+
+
+% tester
+% They are developed without the specific concerns of neuroimaging and anatomy taken into account.  That is, most existing implementations of machine learning methods ignore the neuroanatomical constraints necessary for biological plausibility and stable optimization of problems involving imaging.  Here, we propose a foundation for computing sparse eigenanatomy based on optimization of a penalized statistical criterion that incorporates anatomical priors.  
+% Thus we implement an optimization-based, one-step computation to replace more ad hoc alternatives \cite{Tamnes2010,Wang2009,Walhovd2009} that typically rely on computing a $p \times p$ ($p=$number of voxels) correlation matrix followed by post-processing.  
+
+% The class of eigenanatomy algorithms will approximate neuroimaging data with a set of sparse biologically plausible component images.   
+
+
+%A variety of methods exist for formulating the approximating matrix $\Xh$ and also for the penalties associated with the approximation.  First, we denote each eigenanatomy component as $%{\bf e}_i$ where $i$ is ordered such that each eigenanatomy from ${\bf e}_1$ to ${\bf e}_m$ provides a decreasing contribution to the accuracy of the estimate matrix.  Note that %eigenanatomy is orthogonal, ${\bf e}_i \perp {\bf e}_j  \forall i \ne j$, and (by definition) {\em sparse}.  Typically, $\Xh$ will be derived from $m < n$ vectors where $n$ is the number %of subjects. 
+%The classic approximation matrix based on SVD gives  
+%$ \Xh =   \sum_{i=1}^m  \lambda_i  {\bf u}_i {\bf e}_i^T $
+%where the ${\bf u}_i$ terms are the subject space projections of the eigenanatomy basis vectors and the $\lambda_i$ are the estimated eigenvalues (or singular values).  This formulation %can be used to decompose the $p \times p$ matrix efficiently, as in \cite{Witten2009b}.  Similar variants exist in NMF where the $\lambda$ are usually not written explicitly. 
+
+
+
+\subsection{Notation}
+Define a $n\times p$ (rows by columns) matrix ${\bf X }$, where $n$ is
+the number of observations (subjects) and  $p$ is the number of total
+voxels. For instance, ${\bf X}$ can be the cortical thickess
+measurements or the fMRI time series for all the $n$ subjects.
+We seek a sparse decomposition of the ${\bf X}$ matrix  into two matrices
+${\bf U}$ and ${\bf V}$, (such that ${\bf X \approx UV^{\top}}$). The ${\bf V}$ matrix,
+which is of size $p\times k$ is typically called the 
+{\it factor loading matrix} and each of its columns is a basis vector
+for approximating the {\bf X} matrix or sometimes it is also called a {\it
+dictionary}, in the sparse coding literature where each of its columns
+is an {\it atom}. The ${\bf U}$ matrix of size $n \times k$ is called the
+{\it coefficient matrix} or the {\it latent vectors}. 
+
+ \begin{equation}
+\underset{U, V}{\operatorname{arg\,min}} 
+\|{\bf X} - {\bf UV^{\top}} \|_F^2 
+\label{sparse:matrix}
+\end{equation}
+
+Now, there are three keys aspects of the above objective that a
+researcher might care about and might want to tailor to the
+requirements of a specific domain.
+
+\begin{enumerate}
+\item Sparsity: Should the ${\bf U}$ and/or ${\bf V}$ matrices be sparse? 
+\item Orthogonality: Should each of ${\bf U}$ and ${\bf V}$ matrices have
+orthogonal columns i.e. $\forall\;\;l 1\leq i < k\;\; u_i \perp u_j $ and $ v_i
+\perp v_j $ ? In addition to this, should the columns of {\bf $U$} be
+orthogonal to the columns of {\bf $V$}. 
+\item Positivity: Should the entries of ${\bf U}$ and/or ${\bf V}$
+matrices be only positive?
+\end{enumerate}
+
+Broadly, this gives rise to four different algorithms
+
+\subsection{Principal Component Analysis (PCA)}
+In standard PCA, ${\bf U}$, and ${\bf V}$ are orthogonal and are
+related by ${\bf U} = {\bf XV}$. The matrix ${\bf V}$ is 
+estimated by performing singular value decomposition (SVD) on the
+correlation matrix ${\bf X^{\top}X}$ and contains the `k' 
+eigenvectors with the largest eigenvalues as its columns.
+
+
+A potential problem with standard PCA is that the low-dimensional
+components it finds consist of contributions from each of the $p$
+components of the high-dimensional space, which can be undesirable in
+a domain like brain imaging. 
+
+\subsection{Sparse Principal Component Analysis (SPCA) }
+Sparse PCA (SPCA) augments the objective function presented in
+Equation~\ref{sparse:matrix}  by putting an $\ell_1$ sparsity
+constraint on the columns of ${\bf V}$. Its worth noting that unlike
+standard PCA, SPCA does not normally include an explicit orthogonality
+constraint. The reconstruction error term makes the orthogonality less
+important \cite{le_ica_2011}. If we were to enforce sparsity on the
+coefficients matrix {$\bf U$} instead of the loadings matrix {$\bf
+V$}, then we get the {\it sparse coding}~\cite{Lee2006,Mairal2010} or
+{\it sparse dictionary
+learning}~\cite{varoquaux2011multi,abraham2013extracting} objective. 
+\begin{equation}
+\begin{aligned}
+&\underset{U,V}{\operatorname{arg\,min}} \| {\bf X - UV^{\top}} \|_2^2
++ \lambda \sum_i \|{\bf V}_i\|_1
+\end{aligned}
+\end{equation}
+
+
+\subsection{Non-negative Matrix Factorization}
+NMF requires both ${\bf U}$ and ${\bf V}$ to be non-negative. There are no
+orthogonality constraints as earlier.  
+\begin{equation}
+\begin{aligned}
+&\underset{U, V}{\text{minimize}} &&\| \mathbf{X} - {\bf UV}^{\top}\|_2^2 \\ 
+& \text{subject to} & &\mathbf{U,V} \succeq 0,
+\end{aligned}
+\end{equation}
+where $\succeq$ indicates element-wise inequality. This constraint
+fits naturally to problems in which the input data is non-negative, as
+is the case with text mining where each document can be seen as
+composed of words~\cite{berry2007algorithms} or music analysis~\cite{fevotte2009nonnegative}.  If we further add a sparsity penalty on the
+coefficients matrix ${\bf U}$, then we get non-negative sparse coding~\cite{sparseNMF_hoyer}.
+
+
+
+
+\subsection{Independent Component Analysis (ICA)}
+The motivation for ICA comes from the blind source separation problem
+where ``blind'' means we know nothing about the source of signals, and
+we have to recover all the true sources generating the data.
+
+ICA seeks to impose statistical ``independence'' on the \textit{sources}. It is related to
+sparse coding, in that if we replace the $\ell_1$ sparsity penalty in
+sparse coding with a non-gaussianity promoting penalty, we get
+ICA. The notation of ICA is also a bit different and in literature
+${\bf A}$ and ${\bf s}$ are used instead of {$\bf U$} and ${\bf V}$
+respectively. However, to be consistent, we will stick to our notation
+of {$\bf U$} and ${\bf V}$. 
+\begin{equation}
+\begin{aligned}
+&\underset{U,V}{\operatorname{arg\,min}} & & \| {\bf X} - {\bf
+UV}^{\top} \|_2^2 + \lambda p({\bf U}),
+\end{aligned}
+\label{eqn:ICA}
+\end{equation}
+where $p({\bf U})$ penalizes the non-independence of the columns of {\bf U}.
+Although there are many ways to optimize for statistical independence
+(or ``non-Gaussianity''), e.g. skewness, kurtosis; a common practical way of enforcing the independence is to use the log hyperbolic cosine penalty. The log hyperbolic cosine is a close approximation to the $\ell_1$ norm, Equation \ref{eqn:ICA} is closely approximated by 
+\begin{equation}
+\begin{aligned}
+&\underset{U,V}{\operatorname{arg\,min}} & & \|{\bf  X - UV}^{\top}
+\|_2^2 + \lambda \sum_i \|{\bf U}_i\|_1.
+\end{aligned}
+\end{equation}
+The optimization of the general ICA objective is also different from
+SPCA, sparse coding, NMF all of which can be optimized by gradient
+descent, arnoldi iteration or SVD. The most standard algorithm for ICA
+optimization is an approximate Newton method, called FastICA~\cite{hyvarinen_fast_1999}.
+
+It is worth noting that though we have cast SPCA, sparse coding, NMF and ICA in the same objective but still there are differences between the two in addition to what is described above. 
+
+Firstly, the connection is tied to the assumption of using a log
+hyperbolic cosine penalty; if we were to use some other penalty then
+there might not be an obvious similarity between the methods, which
+makes sense as SPCA considers only upto second order moments
+(gaussianity assumption) whereas ICA optimizes fourth order moments. 
+
+Secondly, since SPCA tries to find directions capturing decreasing variance (second order moment); there is a natural ordering to the components of SPCA. However, the basis vectors found by standard ICA are not ranked in any order. So, above, we assume that the components of ICA are also ranked according to decreasing variance.
+
+
+
+\section{EANAT Objective} 
+
+EANAT objective uses a hybrid decomposition schemes which borrow ideas
+from SPCA and ICA and further augments it with neuroanatomically
+specific penalty terms. EANAT seeks to represent each component image with a set of neuroanatomical coordinates that are {\em connected}, {\em smooth} and are defined by {\em non-negative} weights.  Although this latter constraint can be relaxed, non-negativity improves our ability to interpret data by preventing weights from being both positive and negative within the same eigenanatomy component.  Also, non-negativity means that the projections of eigenanatomy into subject space are simple weighted averages of the input data (e.g. cortical thickness values) for each subject.   
+
+
+\begin{equation}
+\label{eq:eanat}
+\underset{U,V}{\operatorname{arg\,min}} \; \| {\bf X} - {\bf
+UV}^{\top} \|_2^2 + \lambda_1    S({\bf U}) + \lambda_2 S({\bf V}),
+\end{equation}
+where $\lambda_1$ controls the contribution of the ICA (sparse coding) sparsity
+component of the penalty and $\lambda_2$ controls the sparsity of the
+SPCA component of the penalty.  $S(\cdot)$, the sparsity penalty, is defined as follows,
+
+\begin{eqnarray}
+\label{sparse:thresh}
+S( {\bf V} ) =\sum_{i=1}^k \|G\times v_i \|_1,\\ \notag
+\forall_{i \ne j} \langle {\bf v}_j ,  {\bf v}_i \rangle = 0~,~{\bf
+v}_i \succeq 0~,~\|S( {\bf v} )\|_1 = \gamma \\ \notag
+\end{eqnarray}
+Where, $\gamma$ is a user defined sparsity parameter which controls the
+number of non-zero entries in the solution. $G$ is a kernel matrix which
+enforces smoothness and connectedness among the different EANAT
+components along the anatomical manifold and is similar in spirit to the wavelet or discrete cosine basis transform~\cite{becker2011nesta}. When the $G$ operator is equal  to $I$ (identity matrix), it
+reduces to a simple $\ell_1$ penalty.
+
+
+Its worth noting a further few points about the objective:
+
+\begin{itemize}
+
+ \item We enforce orthogonality between the various components.
+ In other words, $\forall$ $1 \leq i, j \leq p$, $u_i \perp u_j$ and
+ $v_i \perp v_j$  but  unlike standard PCA, $u_i \ne v_i\cdot x$. 
+  
+\item  Non-negativity of the components means that the projections of eigenanatomy into subject space are simply weighted averages of the input data (e.g. cortical thickness values) for each subject.   Although this constraint can be relaxed, non-negativity improves our ability to interpret data by preventing weights from being both positive and negative within the same eigenanatomy component. As such, one may compute effect sizes and interpret statistics directly, for example, ``reductions in posterior cingulate cortical thickness reduce performance on memory-related psychometrics.''  
+
+\iffalse
+
+\item Sparsity is enforced by an $\ell_1$ penalty as in common in machine
+learning\cite{sparseNMF_hoyer,sparseNMF_kim,sparseNMF_heiler,sparsePCA_zou,sparsePCA_jordan,sparsePCA_journee,Gandy2010,Chennubhotla2001,Lee2011}.
+In practice, we enforce sparsity and smoothness of the EANAT components by a non-linear conjugate gradient
+projection method (described in next section).  
+
+
+For instance, for enforcing sparsity on $\bf V$, we start with values
+of $\bf V$ which keep all or none of the features, and evaluate the
+objective~\ref{sparse:thresh}. Based on whether $S({\bf V})$ is higher or
+lower than $\gamma$, we perform a binary search to find a set of
+features which satisfy the sparsity constraint.
+
+%The algorithm thresholds $w_i$ by $\gamma$, clusters $v_i$ and then
+%smooths $v_i$ then computes sparsity constraint
+%i.e. $\|v_i\|_0=\gamma$.  The optimal $\gamma^\star$ is identified by
+%performing a binary search until $\gamma=\gamma^\star$.  Finally, the
+%constraints are again  applied starting with the $\ell_1$ threshold $\gamma^\star$.  
+
+\fi
+
+\end{itemize}
+
+To the best of our knowledge, directly exploring the interaction
+between sparseness, orthogonality and non-negativity for automated
+parcellation of the brain is novel.  This penalty set gives us
+anatomically reasonable results as we show in the experiments section.
+
+
+
+
+\subsection{Optimization}
+There are a variety of ways that one could optimize the above objective. \cite{Mairal2010} formulate a convex alternative for the above objective which uses an elastic net type penalty on {\bf V}. However, we propose an alternating optimization approach, also called an analysis-synthesis loop~\cite{murphy}. As a broader template, we optimize {\bf U} keeping {\bf V} fixed. Next, we deflate the {\bf X} matrix using the optimized {\bf U}s, and then optimize {\bf V} with {\bf U} fixed. This alternating procedure is repeated till convergence. Each of our sparse optimization for {\bf U} and {\bf V} is performed via iterative soft-thresholding on the conjugate gradient of the Rayleigh Quotient. 
+
+
+Iterative soft-thresholding (soft$(a,\delta)\triangleq$ sign(a)$(\|a\|-\delta)_+$ with  $x_+=$max(x,0)) falls in the class of proximal gradient methods and has been shown to have better convergence~\cite{bredies2008linear} and scalability properties compared to other sparse optimization algorithms e.g. Least Angle Regression (LARS)~\cite{yang2010}. Furthermore, deflation has been shown to give better sparse PCA solutions~\cite{mackey08}; so adding a deflation step between the alternating optimizations helps us get better solutions.
+
+
+
+
+\subsection{Implementation Details} 
+
+\iffalse
+\noindent{\bf Eigenanatomy optimization algorithm.}  We will implement our own Arnoldi iteration (similar to \cite{Gandy2010,sparsePCA_journee}) and the gradient-based methods %proposed in \cite{Cai2010} and also in \cite{Lee1999}.  We will develop the general framework and matrix representation above starting with the classic Arnoldi iteration method.  This technique is appropriate for large-scale problems and fits within the standard alternating minimization approach used by NMF and SPCA methods \cite{Gandy2010}.  
+
+
+One could optimize the EANAT objective in Equation~\ref{eq:eanat} using an iterative approach like Arnoldi iteration. However, since the EANAT objective is non-convex we risk the chance of getting stuck in a bad local optima. Specifically, with that in mind, we propose a novel optimization algorithm for the eanat objective; particularly, we ``deflate'' our data matrix {\bf X} (factoring out the effect of other eigenvectors) between computations of different eigenvectors, which leads to better solutions~\citep{mackey08}. The deflation based optimization entails performing an additional ordinary least squares regression (OLS) step and can be motivated as follows.
+\fi
+
+
+We know that the best rank `k' reconstruction of a matrix  i.e. $\argmin_{\hat{\bf X}} \|\bf X~-~\hat{X} \|_F^2$, is provided by its first `k' eigenvectors~\citep{eckart} i.e. $\hat{\bf X}=\sum_{i=1}^k d_k{u}_k{v}_k^{\top}$.
+
+Hence, the best rank-1 approximation of {\bf X}, i.e. the $n\times 1$ and $p \times 1$ vectors ${\tilde{u}}$, ${\tilde{v}}$ such that,
+\begin{equation}
+\label{ppca1}
+{\tilde{u}^*, \tilde{v}^*}= min_{{\tilde{u}}, {\tilde{v}}} \|{{\bf X}- \tilde{u}\tilde{v}^{\top}}\|_F^2
+\end{equation}
+is given by the SVD solution-- ${\tilde{u}=u_1}$ and ${\tilde{v}}=d_1{v_1}$, where ${u_1 }$, ${v_1}$ and $d_1$ are the first left and right eigenvectors and the eigenvalue, respectively, of the {\bf X} matrix.   
+
+Proceeding this way, $d_2{u}_2{v}_2^{\top}$ provide the best rank-1 approximation of the ``deflated'' matrix ${{\bf X}- d_1{u}_1{v}_1^{\top}}$ and so on. 
+
+
+As pointed by~\citep{shen},  with ${\tilde{v}}$ fixed, the above optimization over  ${\tilde{u}}$ is equivalent to a least squares regression of {\bf X} on  ${\tilde{v}}$. However, in our case, we have sparsity on ${\tilde{u}}$ also, so it becomes a sparse optimization problem (Equation~\ref{spca1}).
+
+Similarly,  with ${\tilde{u}}$ fixed, the optimization over ${\tilde{v}}$ is also a sparse optimization problem  (Equation~\ref{spca2}). As mentioned in the last section, we solve both these by iterative soft thresholding on the conjugate gradient of Rayleigh Quotient.
+
+As described earlier, our implementation alternates between optimization of Equations~\ref{spca1}, ~\ref{spca2} (shown below for iteration number `m') till convergence . 
+
+\begin{equation}
+\label{spca1}
+{\bf U^*}_{m}= \argmin_{{U},{\|U\|}=1,  u_i^{\top}u_j=0, i\neq j}
+({\bf X} -{\bf U}{\bf V}^{\top}_{m-1}) +  \lambda_1\|{G{\bf U}}\|_1 
+\end{equation}
+
+
+\begin{equation}
+\label{spca2}
+\{v_i^*\}_{m}= \argmin_{{v_i},{\|v_i\|}=1,  v_i^{\top}v_j=0, i\neq j}
+({\bf X}_{\backslash i} -{\bf U}_{m}v_i^{\top}) +  \lambda\|{Gv_i}\|_1 
+\end{equation}
+where ${\bf X}_{\backslash i}  \triangleq {\bf X}- \sum_{j=1, j\neq
+i}^{k}{\tilde{u}_j\tilde{v}_j^{\top}}$ is the ``deflated'' {\bf X} matrix. 
+
+
+
+
+The sparseness, smoothness and non-negativity are enforced as discussed in the previous section.
+
+ The details of our algorithm can be found in Algorithms~\ref{algo1},~\ref{algo2}.
+
+\begin{algorithm}[htbp]
+\small \caption{\bf  Eigenanatomy: EANAT (Main Algorithm)}
+\label{algo1}
+\KwIn { {\bf X}, $\lambda$ }
+Standardize the data matrix {\bf X}: Mean center it and scale to unit variance\;
+Initialize the eigenvectors randomly ${\bf V \gets \mathcal{N}(0,1)}$\;
+${\bf U} \gets$ {\texttt {SCGP}}(${\bf X}, {\bf V}, \lambda_1, 1:k$)\;
+\While {${\Delta {\bf \|V\|}} \leq \epsilon$ }{	
+\For{i=1 to k}{
+	${\bf X_{\backslash i}}  \gets {\bf X}- \sum_{j=1, i\neq j}^{k}{u_jv_j^{\top}}$\Comment{Deflate {\bf X}}\;
+	${v_i} \gets$ {{\texttt {SCGP}}}(${\bf X}_{\backslash i}, {\bf V},  \lambda, i$)\;
+	${\bf U} \gets$ {\texttt {SCGP}}(${\bf X}, {\bf V}, \lambda_1, 1:k$) \Comment{Where {\bf V} is the matrix with only its $i^{th}$ column updated. Other columns are the same as previous iteration}\;
+	}
+	}
+\KwOut {${\bf V}$}
+\end{algorithm}
+\begin{algorithm}[htbp]
+\label{algo2}
+\DontPrintSemicolon
+
+\iffalse
+\SetKwFunction{KwFun}{ReconOpt} \;
+\KwFun{${\bf X}$, ${\bf V}$}\Comment{Optimize Reconstruction error for finding $u_i$}\;
+{
+\hspace{0.5cm}	${\bf U}   \gets ({\bf XX^{\top}})^{-1}{\bf XV}$ \Comment{Performs Ordinary Least Squares Regression.}\;
+\hspace{0.5cm} return {\bf U}
+}
+\vspace{1cm}
+\fi
+
+\SetKwFunction{KwFun}{SCGP}\;
+\KwFun{${\bf X}$, ${\bf V}$, $\lambda$,i } \Comment{Sparse Conjugate Gradient Projection for finding $v_i$}\;
+{
+\hspace{0.5cm}$k \gets 1$\;
+\hspace{0.5cm}${c}^k \gets {\bf V}_{:,i}$ \Comment{${\bf V}_{:,i}$ contains the $i^{th}$ eigenvector.}\;
+\hspace{0.5cm}${c}^k \gets$ {\texttt S}(${c}^k$,$\gamma$) \Comment{Soft-Max Thresholding.}\;
+\hspace{0.5cm}${g}^{k-1} \gets$ 1 \Comment{Initialize Gradient.}\;
+
+\While {${\Delta c} \leq \epsilon$ }{
+
+$ g^{k} \gets ({\bf X^{\top}X}){c}^{k}$  \Comment{Gradient of Rayleigh
+quotient.}\;
+$\gamma \gets  \frac{g^{k}\cdot g^{k}}{g^{k-1} \cdot g^{k-1}}$ \Comment{Conjugate Gradient.} \;
+$ d^{k} \gets g^{k}  + \gamma\cdot d^{k-1}$ \;
+${ c}^{k+1} \gets  {c}^k + d^{k}$  \;
+${c}^{k+1} \gets$ {\texttt {Orthogonalize}}(${c}^{k+1}$,{ $\bf V_{:,\backslash i}$}) \Comment{Orthogonalize w.r.t. all the other $k-1$ eigenvectors.}\;
+ ${c}^{k+1} \gets$ {\texttt S}(${c}^{k+1}$,$\gamma$) \;
+${ c}^{k+1} \gets \frac{{c}^{k+1}}{\| {c}^{k+1}\|}$ \Comment{Normalize}\;
+ $k \gets k+1$\;
+}
+\hspace{0.5cm} return ${c^{k+1}}$
+}
+\small \caption{\bf Eigenanatomy: eanat (Sub Algorithm)}
+\end{algorithm}
+
+
+\section{Results}
+
+% \subsection{Model Comparison between sPCA, ICA and NMF}
+\subsection{Outline of results}
+\begin{enumerate}
+  \item[Figure 1] Graphical/cartoon outline of parts-based representations for neuroimaging   
+  \item[Table 1] Tabular description of the various decompositions and what they penalize
+  \item[Figure 2]  
+  \item[Figure 3]
+\end{enumerate}
+
+ANTsR illustration of eigenanatomy (eanat) in a p-value and a prediction study.  We also illustrate visualization and descriptive statistics with eanat.
+
+
+
+\section{Read in data}
+
+We read in the population data, template, mask, etc.
+
+<<readdata>>=
+tem<-antsImageRead('data/T_template0.nii.gz',3)
+bm<-antsImageRead('data/T_template0Mask.nii.gz',3)
+bm_smooth <- antsImageClone(bm)
+SmoothImage(3, bm, 2, bm_smooth)
+ImageMath(3,tem,"m",bm,tem)
+mask <- antsImageRead( 'data/mask88.nii.gz' ,3  )
+mat <- as.matrix( antsImageRead( 'data/matrix88.mha' ,2 ) )
+globalmean<-apply(mat,FUN=mean,MARGIN=1)
+# mat<-residuals( lm( mat ~  globalmean ) )
+subjin<-read.csv('data/subjid.csv')[1:nrow(mat),]
+subjin<-as.numeric(as.character(substr(subjin,3,6)))
+subjin<-data.frame( EMMI=subjin )
+demog<-read.csv("Demographics_WolkScans.csv")
+demog<-merge(demog,subjin,by="EMMI")
+ncon<-48
+nmci<-nrow(mat)-ncon
+dx<-c(rep(0,ncon),rep(1,nmci))
+mydata<-data.frame( demog, dx=dx, mat=mat )
+mydata_sub <- mydata # [sample(1:nrow(mat), 50,   replace=FALSE),]
+basedir<-'eanat_processing'
+@
+
+\section{Reduce dimensionality}
+
+Next we do the eanat decomposition.
+
+<<eigenanatomy>>=
+
+####################
+its<-3           # max iterations in optimization
+nvecs<-11      # components to split data into ...
+usp<-( 0.5 )     # ICA style if abs( usp ) < 1 or nmf style if usp & vsp> 0
+vsp<-0.13        # components occupy 10% of the mask
+ii<-0              # index for this study 
+cl<-10         # ignore small clusters 
+sm<-1         # smoothing
+basedire<-paste(basedir,ii,'/',sep='')
+dir.create(file.path("./", basedire), showWarnings = FALSE)
+# if ( ! exists('mydecom') )
+  mydecom<-sparseDecom(  mat, mask,  sparseness=vsp, nvecs=nvecs, its=its, cthresh=cl, statdir=basedire,smooth=sm, z=usp)
+#  mydecom<-sparseDecom( as.matrix(mydata_sub[,3:ncol(mydata_sub)]), mask,  sparseness=vsp, nvecs=nvecs, its=its, cthresh=cl, statdir=basedire,smooth=0.0, z=usp)
+decom1<-mydecom$umatrix
+decom2<-imageListToMatrix( mydecom$eigenanatomyimages, mask)
+myproj<-mat %*% t( decom2 )
+colnames(myproj)<-paste("V",1:ncol(myproj),sep='')
+eigParcellation<-eigSeg( mask , mydecom$eigenanatomyimages )
+dir.create('tempoutput')
+antsImageWrite(eigParcellation,'tempoutput/eigseg.nii.gz')
+
+@ 
+
+
+<<egraph>>=
+
+# first fuse with high density to get few predictors , might have to  alter density to get what you want
+graphdensity<-0.25
+print( graphdensity )
+fused<-joinEigenanatomy( mat, mask,  mydecom$eigenanatomyimages, graphdensity )
+print( dim( fused$fusedproj ) ) 
+
+@
+
+\section{EANAT prediction}
+
+Use the components to cross-validate a prediction model.
+
+<<prediction>>=
+#
+### use the networks in prediction                   
+#
+subj<-data.frame( cbind( subjin, dx, fused$fusedproj ) )
+myform<-paste( "dx~", paste( colnames( fused$fusedproj ) , collapse='+' ) )
+mdl<-glm( as.formula(myform), data=subj, family="binomial")
+dd<-0
+for ( i in 1:100 ) dd<-dd+cv.glm(subj, mdl,K=10)$delta[1]*0.01
+print(paste("prediction % misclassification" , dd * 100 ) )
+
+@ 
+
+\section{EANAT morphometry}
+
+Use the components in a simple group comparison.
+
+<<pvalue>>=
+#
+###     perform a t-test on the networks    
+#
+# myproj<-fused$fusedproj # an option 
+#
+pv<-rep(NA, ncol(myproj) ) 
+for ( i in 1:ncol(myproj) )
+  {
+  pv[i]<-t.test( myproj[1:ncon,i],myproj[(ncon+1):nrow(myproj),i] )$p.value
+  print( paste("p-value",i,pv[i]   ))
+  }
+qv<-(p.adjust(pv,method='bonferroni'))
+print(qv)
+
+@ 
+
+
+<<multivarregression>>=
+#
+#  this is similar to something paramveer did in a different context -
+#  i.e. cca on pca results
+#
+inds<-c(13,18,19,20,21,22,23,24,25,26,27,32,33)
+cogmat<-as.matrix(demog[,inds])
+cogmat<-residuals( lm( cogmat ~  Age + Sex + Education , data = demog)
+)
+names( cogmat )<-names( demog )[inds]
+mydecom2<-sparseDecom2( inmatrix=list(myproj, cogmat ), sparseness=c(0.2,-0.5), nvecs=5, its=20, perms=2000 ) 
+# report correspondences for 1st 2 evecs
+ind<-4
+wh1<-which( mydecom2$eig1[,ind] > 0 )
+wh2<-which( mydecom2$eig2[,ind] > 0 )
+print( wh1 )
+print( names( cogmat )[wh2] )
+@ 
+
+
+
+<<vbm>>=
+#
+###     perform a t-test on the voxels                                    
+###     contrast bonferroni & FDR correction                          
+#
+vpv<-rep(NA, ncol(mat) ) 
+for ( i in 1:ncol(mat) )
+  {
+  vpv[i]<-t.test( mat[1:ncon,i],mat[(ncon+1):nrow(mat),i] )$p.value
+ }
+vqv<-(p.adjust(vpv,method='bonferroni'))
+print( min( vqv ) ) 
+vqvi<-antsImageClone( mask )
+vqvi[ mask > 0 ]<-1-vqv
+antsImageWrite(vqvi,'vqvi_bonf.nii.gz')
+vqv<-(p.adjust(vpv,method='BH'))
+print( min( vqv ) ) 
+vqvi<-antsImageClone( mask )
+vqvi[ mask > 0 ]<-1-vqv
+antsImageWrite(vqvi,'vqvi_BH.nii.gz')
+@ 
+
+
+
+\section{EANAT interpretation}
+
+Describe the components in terms of traditional coordinates. Also render the results. 
+
+<<figsetup,echo=TRUE,results='hide',warning=FALSE,message=FALSE, echo=FALSE>>=
+#
+### describe the significant networks 
+#
+if ( ! exists("mymni") ) {
+  mymni<-list( antsImageRead(getANTsRData('mni'),3), 
+            antsImageRead(getANTsRData('mnib'),3), 
+            antsImageRead(getANTsRData('mnia'),3) )
+  }
+
+mysig<-order(qv)
+brain<-renderSurfaceFunction( surfimg =list( bm_smooth ) ) 
+id<-par3d("userMatrix")
+rid<-rotate3d( id , -pi/2, 1, 0, 0 )
+rid2<-rotate3d( id , pi/2, 0, 0, 1 )
+rid3<-rotate3d( id , -pi/2, 0, 0, 1 )
+par3d(userMatrix = id ) 
+@
+
+This is the visual and anatomical description of the most significant network.
+<<describeit, echo=FALSE, results='hide',dev='png', fig.width=4, fig.height=4, out.width='.5\\linewidth'>>=
+opts_chunk$set(fig.path='figure/Eigenanatomy1-', fig.align='center', fig.show='asis',fig.keep='all')
+dir.create('figure')
+i<-mysig[1]
+mytem<-lappend( list(tem), mydecom$eigenanatomyimages[[ i ]] )
+if ( cl < 50 ) cl <- 50
+f<-mydecom$eigenanatomyimages[[ i ]]
+cnt<-getCentroids( f, clustparam = cl, threshparam = 0.5 )
+signifnetworkdescriptor<-getTemplateCoordinates( list(tem , cnt$clustimg ) , mymni , convertToTal = TRUE, outprefix = "/tmp/Z" )
+brain<-renderSurfaceFunction( surfimg =list( bm_smooth ) ) # , alphasurf=0.1 ,smoothsval = 1.5 , smoothfval = 1.0, funcimg=list(cnt$clustimg) , alphafunc=0.2 )
+# brain <-renderSurfaceFunction( list( temgm ), surfval=0.5 , smoothsval=2., smoothfval = 0,mycol=mycols, funcimg=list(f1,f2,f3,glass), alphafunc = myopac )
+plotBasicNetwork( centroids =  cnt$centroids , brain )
+dd<-make3ViewPNG(  rid, id, rid2,  paste('figure/network1',sep='') )
+par3d(userMatrix = id ) 
+@ 
+\begin{figure}[h]
+  \centering
+    \includegraphics[width=1.0\textwidth]{figure/network1.png}
+  \caption{A significant network.}
+\end{figure}
+
+The anatomy of this component and Talairach coordinates.
+<<tableTest,results='asis'>>=
+print(xtable(signifnetworkdescriptor$templatepoints))
+@
+
+The decomposition extracts regions that covary.  So, let's look at the anatomical correlations within this network.  
+
+<<netcorr,results='hide',echo=FALSE>>=
+nnodes<-nrow( cnt$centroids )
+clustimgs<-image2ClusterImages( cnt$clustimg , minThresh =1, maxThresh = nnodes )
+clustmat<-imageListToMatrix( clustimgs, mask )
+means<-apply(clustmat,MARGIN=1,FUN=mean)
+clustmat<-clustmat/means
+clustmat<-mat %*% t(clustmat)
+aalnames<-signifnetworkdescriptor$templatepoints$AA
+colnames(clustmat)<-aalnames
+library(pheatmap)
+png('figure/within_network_correlation.png')
+pheatmap( cor( clustmat ) ,symm=T )
+dev.off()
+@
+\begin{figure}[h]
+  \centering
+    \includegraphics[width=0.95\textwidth]{figure/within_network_correlation.png}
+  \caption{Correlation between values at the nodes of the most significant network.}
+\end{figure}
+
+
+How do the individual networks vary across the whole population?
+
+<<spider,results='hide',echo=FALSE>>=
+row.names(clustmat)<-subjin
+con_avg<-apply( clustmat[1:ncon,],MARGIN=2,FUN=mean)
+mci_avg<-apply( clustmat[(ncon+1):nrow(myproj),],MARGIN=2,FUN=mean)
+clustmat<-rbind( clustmat, con_avg)
+clustmat<-rbind( clustmat, mci_avg)
+pdf('figure/spider.pdf')
+stars( clustmat,main = "Network Thickness: Control vs MCI", flip.labels = FALSE, radius = TRUE, key.loc=c(20,1) )
+# stars(clustmat, len = 0.6, key.loc = c(20,2), main = "Network Thickness: Control vs MCI", draw.segments = TRUE,   frame.plot = TRUE,  flip.labels = FALSE, cex = .7)
+dev.off()
+@
+\begin{figure}[h]
+  \centering
+    \includegraphics[width=0.95\textwidth]{figure/spider.pdf}
+  \caption{{\bf Spider plots:} We show the thickness at each node of the network in every individual as well as the average for the controls and MCI subjects.}
+\end{figure}
+
+
+
+Now let's look at the rest of the significant networks.
+<<describeit2,rgl=FALSE,results='hide',dev='png', fig.width=4, fig.height=4, out.width='.5\\linewidth'>>=
+opts_chunk$set(fig.path='figure/Eigenanatomy1-', fig.align='center', fig.show='asis',fig.keep='all')
+#$
+ct<-2
+for ( i in mysig[2:4] )
+  {
+  mytem<-lappend( list(tem), mydecom$eigenanatomyimages[[ i ]] )
+  f<-mydecom$eigenanatomyimages[[ i ]]
+  cnt<-getCentroids( f, clustparam = cl, threshparam = 0.5 )
+  signifnetworkdescriptor<-getTemplateCoordinates( list(tem ,
+  cnt$clustimg ) , mymni , convertToTal = TRUE, outprefix = "/tmp/Z" )
+  print( signifnetworkdescriptor$templatepoints )
+  brain<-renderSurfaceFunction( surfimg =list( bm ) , alphasurf=0.1 ,smoothsval = 1.5 , smoothfval = 1.0, funcimg=list(cnt$clustimg) , alphafunc=0.2 )
+  plotBasicNetwork( centroids =  cnt$centroids , brain )
+  par3d(userMatrix = id ) 
+  make3ViewPNG(  rid, id, rid2,  paste('figure/network',ct,sep='') )
+  par3d(userMatrix = id ) 
+  ct<-ct+1
+  }
+ @
+ 
+ \begin{figure}[h]
+  \centering
+    \includegraphics[width=1.0\textwidth]{figure/network2.png}
+  \caption{The 2nd significant network with $q$ \Sexpr{qv[mysig[2]]}.}
+\end{figure}
+
+ 
+\begin{figure}[h]
+  \centering
+    \includegraphics[width=1.0\textwidth]{figure/network3.png}
+  \caption{The 3rd significant network with $q$ \Sexpr{qv[mysig[3]]}.}
+\end{figure}
+
+\begin{figure}[h]
+  \centering
+    \includegraphics[width=1.0\textwidth]{figure/network4.png}
+  \caption{The 4th significant network with $q$ \Sexpr{qv[mysig[4]]}.}
+\end{figure}
+
+
+
+The anatomy of this component and Talairach coordinates.
+<<tableTest2,results='asis'>>=
+i<-mysig[2]
+mytem<-lappend( list(tem), mydecom$eigenanatomyimages[[ i ]] )
+f<-mydecom$eigenanatomyimages[[ i ]]
+cnt<-getCentroids( f, clustparam = cl, threshparam = 0.5 )
+signifnetworkdescriptor<-getTemplateCoordinates( list(tem , cnt$clustimg ) , mymni , convertToTal = TRUE, outprefix = "/tmp/Z" )
+print(xtable(signifnetworkdescriptor$templatepoints,caption="Say
+somethin here"))
+@
+
+
+
+<<compareDecom, results='hide'>>=
+its<-5
+nvecs<-6 # 0
+studynames<-c(  "NMF", "ICA", "sPCA", "v+sPCA", "sPICA","v+sPICA", "PCA","fastICA" )
+u<-1/20
+v<-1/2
+mp<-data.frame( studynames=studynames, 
+                uSparseness=c(u, -1*u, -1, -1, -1*u, -1*u, NA, NA), 
+                vSparseness=c( v, -1, -1*v, v, -1*v, v, NA, NA))
+myresults<-rep(NA,nrow(mp))
+myqct<-rep(NA,nrow(mp))
+myk<-rep(NA,nrow(mp))
+mymi<-rep(NA,nrow(mp))
+mycorct<-rep(NA,nrow(mp))
+mypred<-rep(NA,nrow(mp))
+resultlist<-list()
+resultlist2<-list()
+
+for ( ii in c(1:nrow(mp)) ) {
+  basedire<-paste(basedir,ii,'/',sep='')
+  dir.create(file.path("./", basedire), showWarnings = FALSE)
+  print(paste("Params: u ",mp$uSparseness[ii]," v ",mp$vSparseness[ii]))
+  if ( ii < (nrow(mp)-1))
+    mydecom<-sparseDecom( (mat), mask,  sparseness=mp$vSparseness[ii],
+                          nvecs=nvecs, its=its, cthresh=5550, 
+                          statdir=basedire,smooth=0, z=mp$uSparseness[ii])
+  seg<-eigSeg(mask, mydecom$eigenanatomyimages )
+  antsImageWrite(seg,paste(basedire,'eig_seg_',ii,'x.nii.gz',sep=''))
+  dx<-c(rep(0,ncon),rep(1,nmci))
+  decom1<-mydecom$umatrix
+  decom2<-mydecom$umatrix
+
+  if ( TRUE ) {
+  ct<-1
+  for ( x in mydecom$eigenanatomyimages ) {
+    if ( ct < (ncol(decom2)+1) ) {
+      vec<-x[ mask == 1 ]
+      vec<-abs( vec )
+      vec<-vec/sum(vec)
+      wavg<-( mat %*% vec )
+      decom2[ ,ct]<-( wavg )
+      ct<-ct+1
+      }
+  }
+  }
+ if ( ii == (nrow(mp)) )
+    {
+    print("begin fastICA")
+    myica<-fastICA( t(mat) ,nvecs)
+    decom2<-mat %*% myica$S # t(decom2$A)
+    decom1<-t(myica$A)
+    }
+  if ( ii == (nrow(mp)-1) )
+    {
+    pca<-princomp( t(mat) )
+    decom2 <- mat %*% pca$scores
+    decom1 <- t( as.matrix( pca$loadings[1:nvecs,]) )
+    }
+  pvals<-rep(NA,ncol(decom2))
+  ttvals<-rep(NA,ncol(decom2))
+  for ( x in 1:ncol(decom2) )
+    {
+    tt<-( t.test( decom2[1:ncon, x ] , decom2[ (ncon+1):(ncon+nmci), x ] ) )
+    pvals[x]<-tt$p.value
+    ttvals[x]<-tt$statistic
+    }
+  qvals<-(p.adjust(pvals,method="BH"))
+  print(qvals)
+  print("tvals")
+  print(ttvals)
+  myresults[ii]<-sum(qvals<0.050001)
+  mycor<-cor( decom2 )
+  mycorct[ii]<-mean( abs( mycor[  mycor < 1 ] ) )
+  myk[ii]<-sum(abs(c(moments::kurtosis(decom1))))
+  muti<-0 ; mict<-0
+  disc<-discretize(decom1,nbins=16)
+  for ( x in 1:nvecs ) for ( y in 1:nvecs )
+    if ( x != y )
+      {
+      muti<-muti+mutinformation( disc[,x], disc[,y],method="emp")
+      mict<-mict+1
+      }
+  print( muti/mict )
+  mymi[ii]<-muti/mict
+  colnames(decom2)<-paste("V",1:ncol(decom2),sep='')
+  subj<-as.data.frame(cbind(subjin,dx,decom2))
+  myform<-paste("dx~",paste(colnames(decom2),collapse='+'))
+  mdl<-glm( as.formula(myform), data=subj, family="binomial")
+  print("begin cv")
+  dd<-0
+  for ( i in 1:100 ) dd<-dd+cv.glm(subj, mdl,K=10)$delta[1]*0.01
+  mypred[ii]<-dd[1]
+  mydf<-data.frame(meanCorrelation=mycorct,
+                   kurtosis=myk,
+                   mutualinformation=mymi,
+                   qValLtPoint05=myresults,
+                   prediction=mypred)
+  mydf<-cbind(mp,mydf)
+  print(mydf)
+  resultlist <-lappend( resultlist, mydecom  )
+  resultlist2<-lappend( resultlist, decom2 )
+  library(xtable)
+  xtbl<-xtable(mydf)
+  print(xtbl,floating=FALSE, file='results.tex', booktabs=T)
+  write.csv(mydf,'quick_results2b.csv')
+}
+
+@
+
+\input{results.tex}
+Now we are done.  The results are: 
+\begin{enumerate}
+\item An anatomically interpretable decomposition.
+\item Its use in a prediction study for mild MCI---results are comparable to state of the art methods.
+\item Application to standard morphometry to reveal network level differences in cortical thickness patterns.
+\end{enumerate}
+Enjoy! 
+
+\bibliographystyle{IEEEtran}
+\bibliography{icapca}
+\end{document}
