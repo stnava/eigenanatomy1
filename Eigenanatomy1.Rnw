@@ -38,6 +38,7 @@ library(grDevices)
 library(infotheo)
 library(xtable)
 library(fastICA)
+library(graphics)
 @
 
 <<definevars, include=FALSE, cache=FALSE,eval=TRUE>>=
@@ -89,49 +90,39 @@ thousand or more variables.
 
 Although there are many variants of dimensionality reduction, the three most representative and widely used techniques are Principal Component Analysis (PCA), Non-negative Matrix Factorization (NMF), and Independent Component Analysis (ICA).  (We limit ourselves here to linear dimensionality reduction techniques, as non-linear techniques \cite{roweis_nonlinear_2000,saxena_non-linear_2004,donoho_hessian_2003} are generally more complex and suspect to noise.)   PCA \cite{jolliffe2005principal} is one of the most widely used dimensionality reduction algorithms.  
 
-(NMF)~\cite{paatero1994positive}  constrains the learned components to be
+NMF~\cite{paatero1994positive}  constrains the learned components to be
 positive, with the result that each  component of the dictionary is a positive
 sum of positive ``parts'' rather than a sparse sum of positive or
 negative parts. The main motivation behind NMF is to come up
 with ``parts-based representations'' which transforms unstructured
-data into more interpretable pieces\cite{Lee1999,sparseNMF_hoyer,lee_learning_1999,berry2007algorithms}.  Sparse versions of NMF have also been described~\cite{sparseNMF_hoyer}.
+data into more interpretable pieces~\cite{Lee1999,sparseNMF_hoyer,lee_learning_1999,berry2007algorithms}.  Sparse versions of NMF have also been described~\cite{sparseNMF_hoyer}.
 
-(ICA)~\cite{hyvarinen2000independent} has a different history and notation from PCA and NMF, and was originally motivated by the ``blind source separation'' problem: Given a data matrix that
+ICA~\cite{hyvarinen2000independent} has a different history and notation from PCA and NMF, and was originally motivated by the ``blind source separation'' problem: Given a data matrix that
 contains information from a variety of sources, how can we uncover the
 original sources?  As opposed to PCA, which optimizes variance explained and orthogonality among the basis vectors, ICA optimizes ``independence'' or ``non-Gaussianity'' of the 
-basis vectors.  Note that PCA, owing to its gaussianity assumption identifies the true sources only up to a rotation, so we need a
-non-gaussianity assumption (prior/regularization) on the sources to
-recover the true sources.
+basis vectors.  PCA, owing to its Gaussianity assumption identifies the true sources only up to a rotation, whereas the assumption of non-Gaussian sources in ICA enables recovery of sources without the rotational ambiguity. 
 
 Traditional PCA has the disadvantage that
 the low-dimensional components consist of contributions from every
 component of the high-dimensional space, which makes interpretation of
 the low-dimensional space difficult.  This limits their popularity especially among clinicians who
 are often as interested in clinical interpretability as predictive
-accuracy. Sparse methods have sought to resolve this issue \cite{sparseNMF_hoyer,Witten2010,Friedman2010,Cherkassky2009,Friedman2008}. 
+accuracy. Sparse methods have sought to resolve this issue~\cite{sparseNMF_hoyer,Witten2010,Friedman2010,Cherkassky2009,Friedman2008}. 
 One common method is Sparse PCA (SPCA)~\cite{jolliffe_simplified_2000,shen2008sparse,guan2009sparse,ulfarsson_sparse_2007}.  Sparse
 PCA incorporates penalties on the matrix decomposition to encourage
 each component to consist of contributions from only a few components
 from the higher dimensional space. Another related technique is sparse
-coding~\cite{Lee2006,Mairal2010} (or dictionary learning)~\cite{varoquaux2011multi,abraham2013extracting}.  Sparse techniques may mimic how the human cortex processes information~\cite{Olshausen2004}.
- However, these recent sparse multivariate methods are anatomically uninformed {and which may lead to unstable results} \cite{Xu2011}. Several groups have proposed methods to generate anatomically informed sparse decompositions  \cite{michel_supervised_2012,grosenick_interpretable_2013,grosenick_interpretable_2008,varoquaux_small-sample_2012,sabuncu_relevance_2012,batmanghelich_general_2009,batmanghelich_regularized_2011,batmanghelich_generative-discriminative_2012}, and recent work points to the fact that exploiting problem-specific information can improve parts-based representations \cite{Guan2011,Cai2010,Hosoda2009}. Each algorithm has a different history, employs different theoretical
-arguments and is favored in a different community. Comparing these methods is challenging, as it is difficult to evaluate the relative importance of the fundamental decomposition objective function, the regularization terms, and the optimization procedure.  In this paper, we propose to bridge this gap by providing a unified framework that encompasses all the commonly used decomposition techniques, thus both clarifying the theoretical differences between the techniques and shedding light on the practical advantages and disadvantages of each one.
+coding~\cite{Lee2006,Mairal2010} (or dictionary learning)~\cite{varoquaux2011multi,abraham2013extracting}.  Sparse techniques may mimic how the human cortex processes information~\cite{Olshausen2004}.  
 
-Recently, questions have been raised about the methods and interpretation of the various decomposition methods, and specifically whether the ``independence'' or the sparsity of the sources drives the ICA decomposition \cite{daubechies_independent_2009,calhoun_independent_2013}.  In addition, there has been a recent interest in the interpretability of the components from the various decompositions.  In particular, studies have pointed out that naively looking at the weights of the components is inappropriate \cite{haufe_interpretation_????}, as the coefficients, or loadings, are at least at significant as the weights themselves.  There has also been a re-evaluation of the assumptions underlying sparse coding and regression techniques, as regressions tend to perform nearly as well on voxels not included in the sparse support of the regression vectors as on the selected voxels \cite{konukoglu_feature_2013}.  This observation has emphasized the need for principled statistical analysis of the output of dimensionality reduction and sparse coding techniques, as a naive interpretation of the raw output can be uninformative and even misleading.  Therefore, a second aim of this work is to demonstrate how the output of the decomposition techniques can be used in a traditional ($n > p$) linear model framework.  Using dimensionality reduction to convert the original $n \ll p$ problem to a traditional $n > p$ problem, or ``clustering, then statistics,'' increases the power of observational studies (CITE COREY'S POWER PAPER) and greatly simplifies statistical inference by avoiding the multiple comparisons problem \cite{nichols_controlling_2003}.  In addition, working with an $n < p$ problem makes it possible to use linear models to generate predictions for unseen data, thus minimizing the possibility of overfitting to a dataset.   
+Using standard sparse techniques for spatially structured neuroimaging data is suboptimal for several reasons.  First, anatomically uninformed sparse techniques allow for anatomically implausible solution vectors consisting of scattered, unconnected voxels that are correlated with an outcome.  Second, it has recently been shown that sparse methods are necessarily unstable \cite{Xu2011}.  Informally, the argument is as follows:  If a method is \textit{sparse} in the sense that it will choose only one of two equally strong predictors, the method must be unstable because either one of the predictors is equally likely to be chosen, and there are thus multiple equally optimal solutions.  Incorporating anatomically reasonable constraints in the solution, such as smoothness and minimum cluster size, can ameliorate the instability of the sparse solution by providing additional anatomical information that will help the algorithm choose which one of two equally strong predictor voxels to include in the solution vector.  
 
+Several groups have proposed methods to generate anatomically informed sparse decompositions.  These have included hierarchical Ward clustering \cite{michel_supervised_2012}, sparse regression techniques \cite{grosenick_interpretable_2008,grosenick_interpretable_2013,grosenick_whole-brain_2009,kandel_predicting_????,varoquaux_small-sample_2012,sabuncu_relevance_2012}, and a combined sparse decomposition and regression technique \cite{batmanghelich_general_2009,batmanghelich_regularized_2011,batmanghelich_generative-discriminative_2012}.  In addition, recent work points to the fact that exploiting problem-specific information can improve parts-based representations \cite{Guan2011,Cai2010,Hosoda2009}.  To date, though, a careful comparison of PCA, NMF, and ICA has been lacking. Each algorithm has a different history, employs different theoretical arguments and is favored in a different community. Comparing these methods is challenging, as it is difficult to evaluate the relative importance of the fundamental decomposition objective function, the regularization terms, and the optimization procedure.  In particular, ICA's terminology and assumptions differ significantly from PCA and NMF. In this paper, we propose to bridge this gap by providing a unified framework that encompasses all the commonly used decomposition techniques, thus both clarifying the theoretical differences between the techniques and shedding light on the practical advantages and disadvantages of each one.
 
-
-Eigenanatomy (EANAT) is a general framework for sparse matrix factorization that is closely related to SPCA,
-NMF, and a version of ICA~\footnote{Log hyperbolic cosine sparsity
-penalty.}.  The goal of EANAT is to statistically learn the boundaries
-of and connections between brain regions by weighing both data and
-prior neuroanatomical guidance.  EANAT component images, on the other hand, {enable prior knowledge to enhance solution stability} and are tied to a set of neuroanatomical coordinates that are {\em connected}, {\em smooth} and may also be defined by {\em non-negative} weights. 
+Recently, questions have been raised about the methods and interpretation of the various decomposition methods, and specifically whether the ``independence'' or the sparsity of the sources drives the ICA decomposition \cite{daubechies_independent_2009,calhoun_independent_2013}.  In addition, there has been a recent interest in the interpretability of the components from the various decompositions.  In particular, studies have pointed out that naively looking at the weights of the components is inappropriate \cite{haufe_interpretation_????}, as the coefficients, or loadings, are at least at significant as the weights themselves.  There has also been a re-evaluation of the assumptions underlying sparse coding and regression techniques, as regressions tend to perform nearly as well on voxels not included in the sparse support of the regression vectors as on the selected voxels \cite{konukoglu_feature_2013}.  This observation has emphasized the need for principled statistical analysis of the output of dimensionality reduction techniques, as a naive interpretation of the raw output can be uninformative and even misleading.  Therefore, a second aim of this work is to demonstrate how the output of the decomposition techniques can be used in a traditional ($n > p$) linear model framework.  Using dimensionality reduction to convert the original $n \ll p$ problem to a traditional $n > p$ problem, or ``clustering, then statistics,'' increases the power of observational studies (CITE COREY'S POWER PAPER) and greatly simplifies statistical inference by avoiding the multiple comparisons problem \cite{nichols_controlling_2003}.  In addition, working with an $n < p$ problem makes it possible to use linear models to generate predictions for unseen data, thus minimizing the possibility of overfitting to a dataset.   
 
 
 
-
-Our main contributions in this paper are:
-
+In summary, the main contributions in this paper are:
 \begin{enumerate}
 \item From a theoretical  standpoint, we provide a unified objective
 function for sparse matrix factorization inspired by SPCA, NMF and ICA which allows us to incorporate different aspects of each kind of
@@ -139,8 +130,8 @@ decomposition into a single framework.
 \item From a practical standpoint, provide uniform optimization algorithms, that allow for
 easy comparison of the decompositions without the confounds of
 different implementation strategies.
-\item Customization of EANAT for neuroimaging by using domain specific
-sparsity and smoothness constraints which aid interpretability of
+\item Customization of Eigenanatomy for neuroimaging by using domain specific
+sparsity and smoothness constraints which aid interpretability and reproducibility of
 results and give superior predictive performance.
 \item A thorough evaluation involving comparison with standard
 approaches. 
@@ -148,7 +139,7 @@ approaches.
 \end{enumerate}
 
 
-\section{Eigenanatomy (EANAT)}
+\section{Eigenanatomy}
 The class of methods encompassing NMF, ICA, SPCA and singular value
 decomposition \cite{Sill2011,Lee2010b,Yeung2002} form the basis for
 the approach proposed here. So, firstly, we describe SPCA, ICA and NMF
@@ -562,7 +553,7 @@ if(decompose) {
   for (i in 1:length(mydecom$eigenanatomyimages)){
     antsImageWrite(mydecom$eigenanatomyimages[[i]], paste('decom1/eigenanatomyimage', sprintf('%02d', i), '.nii.gz', sep=''))
   }
-  antsImageWrite(decom1, 'decom1/umat.nii.gz')
+  write.csv(decom1, 'decom1/umat.csv', row.names=F)
   eigParcellation<-eigSeg( mask , mydecom$eigenanatomyimages )
   dir.create('tempoutput')
   antsImageWrite(eigParcellation,'tempoutput/eigseg.nii.gz')
@@ -573,8 +564,8 @@ if(decompose) {
   for( i in 1:length(names.eigimg)){
     eigenanatomyimages[[i]] <- antsImageRead(names.eigimg[i], 3) 
   }
-  decom1 <- as.matrix(antsImageRead('decom1/umat.nii.gz', 2))
-  mydecom <- list(eigenanatomyimages=eigenanatomyimages, umat=decom1)
+  decom1 <- read.csv('decom1/umat.csv') 
+  mydecom <- list(eigenanatomyimages=eigenanatomyimages, umatrix=decom1)
 }
 decom2<-imageListToMatrix( mydecom$eigenanatomyimages, mask)
 myproj<-mat %*% t( decom2 )
@@ -700,15 +691,13 @@ Describe the components in terms of traditional coordinates. Also render the res
 ### describe the significant networks 
 #
 render <- FALSE
-
+if(!exists('mymni')){ 
+  mymni<-list( antsImageRead(getANTsRData('mni'),3), 
+            antsImageRead(getANTsRData('mnib'),3), 
+            antsImageRead(getANTsRData('mnia'),3) )
+}
+mysig<-order(qv)
 if(render){
-  if ( ! exists("mymni") ) {
-    mymni<-list( antsImageRead(getANTsRData('mni'),3), 
-              antsImageRead(getANTsRData('mnib'),3), 
-              antsImageRead(getANTsRData('mnia'),3) )
-    }
-
-  mysig<-order(qv)
   brain<-renderSurfaceFunction( surfimg =list( bm_smooth ) ) 
   id<-par3d("userMatrix")
   rid<-rotate3d( id , -pi/2, 1, 0, 0 )
@@ -769,7 +758,7 @@ dev.off()
 @
 \begin{figure}[h]
   \centering
-    \includegraphics[width=0.95\textwidth]{figure/within_network_correlation.pdf}
+    \includegraphics[width=0.95\textwidth]{figure/within_network_correlation.png}
   \caption{Correlation between values at the nodes of the most significant network.}
 \end{figure}
 
@@ -777,15 +766,19 @@ dev.off()
 How do the individual networks vary across the whole population?
 
 <<spider,results='hide',echo=FALSE>>=
-row.names(clustmat)<-subjin
+row.names(clustmat)<-subjin$EMMI
 con_avg<-apply( clustmat[1:ncon,],MARGIN=2,FUN=mean)
 mci_avg<-apply( clustmat[(ncon+1):nrow(myproj),],MARGIN=2,FUN=mean)
 clustmat<-rbind( clustmat, con_avg)
 clustmat<-rbind( clustmat, mci_avg)
-pdf('figure/spider.pdf')
-stars( clustmat,main = "Network Thickness: Control vs MCI", flip.labels = FALSE, radius = TRUE, key.loc=c(20,1) )
+
+#pdf('figure/spider.pdf')
+
+#stars( clustmat,main = "Network Thickness: Control vs MCI", flip.labels = FALSE, radius = TRUE, key.loc=c(20,1) )
+
 # stars(clustmat, len = 0.6, key.loc = c(20,2), main = "Network Thickness: Control vs MCI", draw.segments = TRUE,   frame.plot = TRUE,  flip.labels = FALSE, cex = .7)
-dev.off()
+
+#dev.off()
 @
 \begin{figure}[h]
   \centering
@@ -876,43 +869,44 @@ for ( ii in c(1:nrow(mp)) ) {
   basedire<-paste(basedir,ii,'/',sep='')
   dir.create(file.path("./", basedire), showWarnings = FALSE)
   print(paste("Params: u ",mp$uSparseness[ii]," v ",mp$vSparseness[ii]))
-  if ( ii < (nrow(mp)-1))
+  if ( ii < (nrow(mp)-1)){
     if(decompose) {
       mydecom<-sparseDecom( (mat), mask,  sparseness=mp$vSparseness[ii],
         nvecs=nvecs, its=its, cthresh=5550, statdir=basedire,smooth=0, z=mp$uSparseness[ii])
       decom1 <- mydecom$umatrix
       for(i in 1:length(mydecom$eigenanatomyimages)){
-        antsImageWrite(mydecom$eigenamatomyimages[[i]], 
+        antsImageWrite(mydecom$eigenanatomyimages[[i]], 
           paste(basedire, '/eigenanatomyimage', sprintf('%02d', i), '.nii.gz', sep=''))
       }
-      antsImageWrite(decom1, paste(basedire, 'umat.nii.gz', sep=''))
+      write.csv(decom1, paste(basedire, '/umat.csv', sep=''), row.names=F)
     } else {
       eigenanatomyimages <- list()
-      names.eigimg <- list.files(basedir, pattern=glob2rx('eigenanatomyimage*.nii.gz'), full.names=T)
+      names.eigimg <- list.files(basedire, pattern=glob2rx('eigenanatomyimage*.nii.gz'), full.names=T)
       for(i in 1:length(names.eigimg)){
         eigenanatomyimages[[i]] <- antsImageRead(names.eigimg[i], 3)
       }
-      decom1 <- as.matrix(antsImageRead(paste(basedir, 'umat.nii.gz', sep=''), 2))
-      mydecom <- list(eigenanatomyimages=eigenanatomyimages, umat=decom1)
+      decom1 <- read.csv(paste(basedire, '/umat.csv', sep=''))
+      mydecom <- list(eigenanatomyimages=eigenanatomyimages, umatrix=decom1)
     }
-  seg<-eigSeg(mask, mydecom$eigenanatomyimages )
-  antsImageWrite(seg,paste(basedire,'eig_seg_',ii,'x.nii.gz',sep=''))
-  dx<-c(rep(0,ncon),rep(1,nmci))
-  decom1<-mydecom$umatrix
-  decom2<-mydecom$umatrix
+    seg<-eigSeg(mask, mydecom$eigenanatomyimages )
+    antsImageWrite(seg,paste(basedire,'eig_seg_',ii,'x.nii.gz',sep=''))
+    dx<-c(rep(0,ncon),rep(1,nmci))
+    decom1<-mydecom$umatrix
+    decom2<-mydecom$umatrix
 
-  ct<-1
-  for ( x in mydecom$eigenanatomyimages ) {
-    if ( ct < (ncol(decom2)+1) ) {
-      vec<-x[ mask == 1 ]
-      vec<-abs( vec )
-      vec<-vec/sum(vec)
-      wavg<-( mat %*% vec )
-      decom2[ ,ct]<-( wavg )
-      ct<-ct+1
+    ct<-1
+    for ( x in mydecom$eigenanatomyimages ) {
+      if ( ct < (ncol(decom2)+1) ) {
+        vec<-x[ mask == 1 ]
+        vec<-abs( vec )
+        vec<-vec/sum(vec)
+        wavg<-( mat %*% vec )
+        decom2[ ,ct]<-( wavg )
+        ct<-ct+1
+      }
     }
   }
- if ( ii == (nrow(mp)) ){
+  if ( ii == (nrow(mp)) ){
     print("begin fastICA")
     myica<-fastICA( t(mat) ,nvecs)
     decom2<-mat %*% myica$S # t(decom2$A)
@@ -970,7 +964,6 @@ for ( ii in c(1:nrow(mp)) ) {
   print(xtbl,floating=FALSE, file='results.tex', booktabs=T)
   write.csv(mydf,'quick_results2b.csv')
 }
-
 @
 
 \input{results.tex}
